@@ -91,13 +91,6 @@ def check(output, home_only=False):
                 for b in case_inks[index + 1:]:
                     require(a[5] < b[3] or b[5] < a[3] or a[6] < b[4] or b[6] < a[4],
                             case + ": separate ink " + a[7] + " / " + b[7])
-        for label in ("名称:", "信号:", "电压:"):
-            if any(row[3] == label for row in rows):
-                require(count(case, label) == 20, case + ": all twenty fixed " + label)
-                numbered = [row for row in rows if row[3].isdigit() and row[1] >= 45 and
-                            row[0] in (8, 192)]
-                require(sorted(int(row[3]) for row in numbered) == list(range(1, 21)),
-                        case + ": all twenty channel numbers")
     for case in ("home_empty", "home_page2_empty"):
         require(count(case, "通道") == 10 and count(case, "--") == 10,
                 case + ": fixed labels before binding")
@@ -110,18 +103,19 @@ def check(output, home_only=False):
     require(count("home_partial_received", "--") == 1,
             "home_partial_received: only unread channel waits")
     for kind, zero in (() if home_only else (("signal", "0 dBm"), ("voltage", "0.0 V"))):
-        require(count(f"menu_{kind}_waiting", "--") == 20,
-                kind + ": twenty unread values wait")
-        require(count(f"menu_{kind}_received_zero", zero) == 20,
-                kind + ": twenty actual zeros visible")
-        require(count(f"menu_{kind}_partial_received", zero) == 19 and
+        require(count(f"menu_{kind}_waiting", "--") == 10,
+                kind + ": ten unread values wait")
+        require(count(f"menu_{kind}_received_zero", zero) == 10,
+                kind + ": ten actual zeros visible")
+        require(count(f"menu_{kind}_partial_received", zero) == 9 and
                 count(f"menu_{kind}_partial_received", "--") == 1,
                 kind + ": partial receipt remains independent")
     if not home_only:
-        require(sum(row[3].startswith("SW_") for row in records["menu_names_waiting"]) == 20,
+        require(sum(row[3].startswith("SW_") for row in records["menu_names_waiting"]) == 10,
                 "binding names available before telemetry")
-        lower_names = [row for row in records["menu_names_descenders"] if "g_jpqy" in row[3]]
-        require(len(lower_names) == 2 and all(row[1] == 162 and row[2] == 11 for row in lower_names),
+        lower_names = [row for case in ("menu_names_descenders", "menu_names_descenders_page2")
+                       for row in records[case] if "g_jpqy" in row[3]]
+        require(len(lower_names) == 2 and all(row[1] == 158 and row[2] == 18 for row in lower_names),
                 "last-row descenders leave space above bottom frame")
     result = {"checks": len(checks), "failures": failures}
     (output / "text_contract.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n",

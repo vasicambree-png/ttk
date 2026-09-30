@@ -581,6 +581,20 @@ static void render_menu_cases(void) {
         }
     }
 
+    /* Simulate the existing controller frame sequence, not physical K2 events. */
+    init_data(0);
+    for (re = 3u; re <= 5u; ++re) {
+        unsigned menu = re == 5u ? 6u : 3u;
+        snprintf(name, sizeof(name), "pagination_%u_enter", re);
+        render(name, 3, menu, re, 0, 1);
+        snprintf(name, sizeof(name), "pagination_%u_next", re);
+        render(name, 3, menu, re, 0, 2);
+        snprintf(name, sizeof(name), "pagination_%u_exit", re);
+        render(name, 3, menu, 0, 0, 1);
+        snprintf(name, sizeof(name), "pagination_%u_reenter", re);
+        render(name, 3, menu, re, 0, 1);
+    }
+
     /* Carry font, color and bitmap context across alternating actual pages. */
     init_data(0);
     for (i = 0; i < 3; ++i) {
@@ -707,8 +721,11 @@ int main(int argc, char **argv) {
         render_home("home_page2_bound_waiting", 2);
         if (!strcmp(scope, "unified")) {
             render("menu_signal_waiting", 3, 3, 3, 0, 1);
+            render("menu_signal_waiting_page2", 3, 3, 3, 0, 2);
             render("menu_voltage_waiting", 3, 3, 4, 0, 1);
+            render("menu_voltage_waiting_page2", 3, 3, 4, 0, 2);
             render("menu_names_waiting", 3, 6, 5, 0, 1);
+            render("menu_names_waiting_page2", 3, 6, 5, 0, 2);
         }
         for (m = 0; m < MAX_CH_NUM; ++m) {
             CH_com_buf[m].data_re_flag = 1;
@@ -718,16 +735,22 @@ int main(int argc, char **argv) {
         render_home("home_page2_received_zero", 2);
         if (!strcmp(scope, "unified")) {
             render("menu_signal_received_zero", 3, 3, 3, 0, 1);
+            render("menu_signal_received_zero_page2", 3, 3, 3, 0, 2);
             render("menu_voltage_received_zero", 3, 3, 4, 0, 1);
+            render("menu_voltage_received_zero_page2", 3, 3, 4, 0, 2);
         }
         CH_com_buf[0].data_re_flag = 0;
+        CH_com_buf[19].data_re_flag = 0;
         render_home("home_partial_received", 1);
         if (!strcmp(scope, "unified")) {
             render("menu_signal_partial_received", 3, 3, 3, 0, 1);
+            render("menu_signal_partial_received_page2", 3, 3, 3, 0, 2);
             render("menu_voltage_partial_received", 3, 3, 4, 0, 1);
-            strcpy((char *)CH_com_buf[9].name, "SW_10_WY_g_jpqy");
-            strcpy((char *)CH_com_buf[19].name, "SW_20_WY_g_jpqy");
+            render("menu_voltage_partial_received_page2", 3, 3, 4, 0, 2);
+            strcpy((char *)CH_com_buf[9].name, "g_jpqy");
+            strcpy((char *)CH_com_buf[19].name, "g_jpqy");
             render("menu_names_descenders", 3, 6, 5, 0, 1);
+            render("menu_names_descenders_page2", 3, 6, 5, 0, 2);
         }
     }
     fclose(draw_log);

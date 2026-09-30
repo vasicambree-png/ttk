@@ -43,7 +43,7 @@ python -B tools/ui_preview/run_preview.py --scope menus --output menu_output --p
 
 边界统计同时检查黑字和 `draw_color=0` 的反白文字。宿主启动时用真实字库绘制两个故意越界的反白字符，分别验证右侧越界与完全位于屏幕左侧的情况；探针只验证检查器，不计入固件页面的越界统计。`summary.json` 单独报告探针失败数量。
 
-`menus` 允许菜单页面视觉变化，要求所有 `home_*`、`message_*`、`save_message_tick*`、`power_off_message_tick10` 和 `restart_confirmation` 在 before/after 间逐像素一致。名称、信号和电压全屏页以 `chu_num2=0/1/2/65535` 绘制，另检查各组像素一致，验证当前不分页的显示语义。
+`menus` 允许菜单页面视觉变化，要求所有 `home_*`、`message_*`、`save_message_tick*`、`power_off_message_tick10` 和 `restart_confirmation` 在 before/after 间逐像素一致。名称、信号和电压页以 `chu_num2=0/1/2/65535` 绘制；2显示11–20，其余显示1–10，检查两页不同和兼容页码一致。
 
 分阶段运行可使用 `--phase before` 或 `--phase after`，然后通过下面命令合并比较报告：
 
@@ -79,3 +79,15 @@ before通过实际绘图识别旧版布局，after要求新的顶栏及网格布
 `--phase both` 可保留视觉对照，before 的旧布局问题只作诊断。
 
 全部输出、源码快照及编译日志留在忽略目录 `unified_text_output/`，不上传预览缓存。
+
+## 三级页面恢复两页
+
+```powershell
+python -B tools/ui_preview/run_preview.py --scope unified --output param_pages_output --phase after
+```
+
+`check_param_pages.py`从实际绘图记录检查每页10组编号、双列五行、页码/确认提示、
+单元格墨迹边界及内部文字碰撞。两页均覆盖等待数据、真实零值和部分接收。
+模拟主控帧解析后页面状态的进入、翻页、退出、重新进入检查只验证绘图响应，
+不执行帧解析或模拟物理确认键。
+本轮显示行为和实机步骤见[三级页面两页显示说明](../三级页面两页显示说明.md)。

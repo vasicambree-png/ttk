@@ -77,9 +77,10 @@ def report(phases: list[str], output: Path, scope: str) -> dict:
             for prefix in ("menu_names_page_", "menu_signal_page_", "menu_voltage_page_"):
                 group = sorted(name for name in case_names[phase] if name.startswith(prefix))
                 if len(group) > 1:
-                    reference = (out / (group[0] + ".pgm")).read_bytes()
+                    reference = (out / (prefix + "1.pgm")).read_bytes()
                     equivalents.append({"phase": phase, "group": prefix, "cases": group,
-                                        "pixel_identical": all((out / (name + ".pgm")).read_bytes() == reference for name in group)})
+                                        "page_mapping_valid": all(((out / (name + ".pgm")).read_bytes() == reference) ==
+                                                                  (not name.endswith("_2")) for name in group)})
         compile_text = (out / "compile.log").read_text(encoding="utf-8", errors="replace")
         warnings = re.findall(r"\bwarning (C\d+):", compile_text)
         errors = re.findall(r"\berror ((?:C|LNK)\d+):", compile_text)
@@ -126,9 +127,9 @@ def report(phases: list[str], output: Path, scope: str) -> dict:
     if scope in ("menus", "unified"):
         lines += [("统一字体范围允许全部页面文字变化，不要求旧字体逐像素一致；使用真实渲染、输入不改写、重绘一致性和文字布局检查。" if scope == "unified" else "菜单范围允许二三级菜单视觉变化，要求所有 home_*、message_*、save_message_tick*、power_off_message_tick10 和 restart_confirmation 前后逐像素一致。"), "",
                   "额外菜单用例覆盖所有合法焦点、子页按钮、0/32 个绑定、三条轮显的全部 11 页、29 字节最长名称、0/121/122/65535 上传地址、参数极值、RSSI -128/-1/0/127 和电压 0/0.9/1.0/9.9/10.0/25.5 V、20 通道空/稀疏/完整数据，以及交替页面。", "",
-                  "名称、RSSI、电压全屏页分别以 chu_num2=0/1/2/65535 绘制；各组应相同，检查原有不分页语义。", ""]
+                  "名称、RSSI、电压页以 chu_num2=0/1/2/65535 绘制；2对应11–20，其余对应1–10。", ""]
         for group in equivalents:
-            lines.append(f"- {group['phase']} {group['group']}: {'一致' if group['pixel_identical'] else '存在差异'}。")
+            lines.append(f"- {group['phase']} {group['group']}: {'一致' if group['page_mapping_valid'] else '存在差异'}。")
         lines.append("")
     for comparison in comparisons:
         if not comparison["pixel_identical"]:
@@ -186,9 +187,15 @@ def main() -> int:
         (output / "report.json").write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         with (output / "report.md").open("a", encoding="utf-8") as stream:
             stream.write(f"\n实际文字墨迹及布局检查：{contracts['checks']} 项，失败 {len(contracts['failures'])} 项。\n")
+    if args.scope in ("menus", "unified") and "after" in phases:
+        from check_param_pages import check
+        params = check(output)
+        contract_failures = contract_failures or bool(params["failures"])
+        result["param_page_contracts"] = params
+        (output / "report.json").write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     after = result["phases"].get("after", {})
     return int(contract_failures or any(after.get(key, 0) for key in ("missing_glyph_occurrences", "boundary_events", "data_mutations", "redraw_mismatches", "bitmap_state_changes", "home_contract_violations", "white_text_boundary_probe_failures")) or
-               any(not group["pixel_identical"] for group in result["equivalent_page_comparisons"] if group["phase"] == "after") or
+               any(not group["page_mapping_valid"] for group in result["equivalent_page_comparisons"] if group["phase"] == "after") or
                result["retained_pages_pixel_identical"] is False)
 
 

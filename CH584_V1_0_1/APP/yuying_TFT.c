@@ -96,7 +96,7 @@ const uint8_t MAIN_LEN = sizeof(Main_List) / sizeof(MENU_LIST);  //�����
  * 普通文字统一为微软雅黑粗体，使用 ui_menu_assets.h 的 11/14/16/18 字模；
  * 首页静态标题同为微软雅黑粗体 20px。Logo 保留原图字形。
  * UI_FONT_CN 仅保留现有 u8g2 上下文配置，实际页面文本由 ui_text_draw 绘制。
- * 20通道页/轮显列表用11px和13px行距，首页正文18px和22px行距。
+ * 20通道三级页每页10条、18px正文和22px行距；轮显列表用11px和13px行距。
  * ================================================================== */
 
 /* 通道类型显示表（下标 = Sensor_Tpye 数值，与 STM32 的 Data_tpye 逐项一致）
@@ -815,7 +815,6 @@ static void ui_menu_header(uint8_t menu, uint8_t fullscreen, const char *subtitl
     if (fullscreen)
     {
         ui_menu_text(200u, 28u, subtitle, 16u);
-        ui_menu_control(298u, 9u, 75u, 24u, "返回", 1u, 1u);
     }
     u8g2_SetFont(&u8g2, UI_FONT_CN);
 }
@@ -830,7 +829,7 @@ void UI_Menu_Display(void)
     u8g2_SetBitmapMode(&u8g2, 1);
     u8g2_SetFontMode(&u8g2, 1);
 
-    /* Preserve the three existing full-screen, twenty-channel branches. */
+    /* Preserve the three full-screen channel branches and their supplied page codes. */
     if (Data_list1.menu_rank == 3)
     {
         uint8_t re_top = Data_list1.UI_main.re_flag;
@@ -971,80 +970,55 @@ void binding_Control(void)
  *   ★ 恢复出厂的实际执行 = STM32 发 0x07（CH584M 在 case 0x07 里清 RAM + 擦 Flash）。
  * ================================================================== */
 
-/* ==================================================================
- * ★★ 契约_息屏省电数据链与页面体系 §4.2 / §4.3 / §4.4（2026-09-22 冻结）
- *    三个"参数过多"页面的**单页全屏双列**版式常量：
- *      安装调试 → 设备信号   install_ch_page(3, ..)
- *      安装调试 → 设备电压   install_ch_page(4, ..)
- *      信息汇总 → 通道绑定名称 summary_name_page(..)
- *
- *  版式：左列 = 通道 1..10，右列 = 通道 11..20，**一屏 20 条、不再分页**
- *        （K1/K3 翻页对这三页无效；STM32 侧 chu_num2 仍照发，字段语义不变）。
- *  行内容：`序号 值 单位`（名称页 = `序号 名称`）。
- *  未绑定 / 不存在的通道：`序号.-----`（如第 3 通道 → `3.-----`，§4.3）；
- *        已绑定但本轮无数据的通道照旧显示上次值。
- *  「返回」项（§4.4）：画在标题带右侧，**固定高亮** —— 本页只有这一个可选项，
- *        K2（确认）必落在它上面 ⇒ 回上一级（实际由 STM32 侧 sub2_close()
- *        执行：UI.Sub2=Sub2_None + 回菜单；CH584M 只画不执行）。
- *
- *  ★ 列几何**复用主页面的双列网格常量**（契约 §4.2 明文要求）：
- *      MAIN_CELL_L_X(8) / MAIN_CELL_R_X(192) / MAIN_COL_SPLIT_X(190) /
- *      MAIN_NUM_W(20) / MAIN_VAL_RIGHT(150)。
- *  ⚠️ 行距**不能**复用 MAIN_ROW_H(18)：那是主页面的"5 行"网格，20 条要 10 行，
- *      10 × 18 = 180 > 168（屏高），几何上放不下。故本组页面取
- *      PARAM_ROW_H = 13px —— 既等于改动前这三页的行距（47 + 13×i），
- *      当前11px字模共用基线45..162，下伸笔画最下到164，与底框166留白。
- *  ⚠️ 已知版面关系（**改动前就存在**，本次未改变其性质）：左列起点沿用主页面
- *      的 MAIN_CELL_L_X(8)，而菜单页的左侧菜单文字画在 x=20..76（UI_Menu_Display
- *      第 1 步），两者会有重叠；改动前的这三页同样从 x=8/x=50 起画，属同一现象。
- *      如需避开，只需把本组页面的左列起点改成 110、右列改成 250 一处常量。
- * ================================================================== */
-#define PARAM_GRID_TOP    45                 /* 11px字模下伸笔画在末行底框上方留白 */
-#define PARAM_ROW_H       13                 /* 行距：10 行 ⇒ 45..162 */
-#define PARAM_ROWS        10                 /* 每列行数（左 1..10 / 右 11..20） */
-#define PARAM_ROW_BASE(i) ((uint8_t)(PARAM_GRID_TOP + PARAM_ROW_H * (i)))
-#define PARAM_VLINE_TOP   36                 /* 双列中竖线上端（标题带分隔线 y=34 之下） */
-#define PARAM_VLINE_LEN   129                /* 中竖线长：36..164（到右侧面板内框底边） */
-#define PARAM_LABEL_X     200                /* 子页标识 x（沿用改动前的位置，不再带页码） */
-#define PARAM_TITLE_BASE  28                 /* 标题带基线（与 UI_Menu_Display 的标题同带） */
-#define PARAM_BACK_X      300                /* 「返回」项文字起点（§4.4） */
-#define PARAM_BACK_W      28                 /* 「返回」文字宽度（wqy14 实测 28px） */
-#define PARAM_NAME_MAX_W  156                /* 名称可用宽度：左列 190-(8+20)=162，留 6px 余量 */
+/* Name/RSSI/voltage pages: the same two-column, five-row grid as home.
+ * chu_num2 == 2 selects channels 11..20; other values select 1..10.
+ * The STM32 owns K2 and sends the next page or exits via the existing 0x01 frame.
+ * Drawing never changes page state, binding metadata or received values. */
+static uint8_t ui_param_first(uint16_t page)
+{
+    return (uint8_t)((page == 2u) ? 10u : 0u);
+}
 
-/* 已绑定设备名称子页（re_flag==5）：20 个通道的绑定名称，**单页全屏双列**（§4.2/§4.3/§4.4）
- *   page 入参保留：chu_num2 仍由 0x01 帧下发（跨端页面码字段语义不变，契约 §5），
- *   但本页**不再分页**。 */
+static void ui_param_header(uint16_t page, const char *title)
+{
+    char subtitle[24];
+    uint8_t i;
+    sprintf(subtitle, "%s %u/2", title, (unsigned int)((page == 2u) ? 2u : 1u));
+    ui_menu_header(UI_Select, 1u, subtitle);
+    ui_menu_control(298u, 9u, 75u, 24u,
+                    (page == 2u) ? "返回" : "下一页", 1u, 1u);
+    ui_main_cut_frame(7u, HOME_GRID_TOP, 181u, HOME_GRID_H, 6u);
+    ui_main_cut_frame(196u, HOME_GRID_TOP, 181u, HOME_GRID_H, 6u);
+    for (i = 1u; i < HOME_ROWS; i++)
+    {
+        uint16_t y = (uint16_t)(HOME_GRID_TOP + HOME_ROW_H * i);
+        u8g2_DrawHLine(&u8g2, 7u, y, 181u);
+        u8g2_DrawHLine(&u8g2, 196u, y, 181u);
+    }
+}
+
 static void summary_name_page(uint16_t page)
 {
-    char     buf[48];
-    uint8_t  i, row, col;
-    uint16_t cx, y;
+    uint8_t i, first = ui_param_first(page);
+    uint16_t cx, y, name_x, label_w = ui_text_width("名称:", HOME_TEXT_SIZE);
     device_t *d;
 
-    (void)page;                              /* 契约 §4.2：不再分页（入参保留以便审计页面码） */
-
-    ui_menu_header(UI_Select, 1u, "名称");
-
-    /* 双列分隔竖线：左列 1..10 / 右列 11..20 */
-    u8g2_DrawVLine(&u8g2, MAIN_COL_SPLIT_X, PARAM_VLINE_TOP, PARAM_VLINE_LEN);
-
-    for (i = 0; i < 20; i++)
+    ui_param_header(page, "名称");
+    for (i = 0u; i < 10u; i++)
     {
-        row = (uint8_t)(i % PARAM_ROWS);              /* 0..9 */
-        col = (uint8_t)(i / PARAM_ROWS);              /* 0 = 左列 1..10，1 = 右列 11..20 */
-        cx  = (uint16_t)(col ? MAIN_CELL_R_X : MAIN_CELL_L_X);
-        y   = PARAM_ROW_BASE(row);
-        d   = &CH_com_buf[i];
-
-        sprintf(buf, "%02d", i + 1);
-        ui_text_draw(cx, y, buf, 11u);
-        ui_text_draw((uint16_t)(cx + MAIN_NUM_W), y, "名称:", 11u);
+        uint8_t ch = (uint8_t)(first + i);
+        cx = (uint16_t)((i / HOME_ROWS) ? HOME_CELL_R_X : HOME_CELL_L_X);
+        y = (uint16_t)(HOME_GRID_TOP + 18u + HOME_ROW_H * (i % HOME_ROWS));
+        d = &CH_com_buf[ch];
+        ui_main_channel_badge(cx, y, (uint8_t)(ch + 1u));
+        ui_text_draw((uint16_t)(cx + HOME_NUM_W), y, "名称:", HOME_TEXT_SIZE);
+        name_x = (uint16_t)(cx + HOME_NUM_W + label_w + 4u);
         if (d->valid && d->name[0] != '\0')
-        {
-            ui_draw_name_size((uint16_t)(cx + 48u), y, d->name, 126u, 11u);
-        }
-        else ui_text_draw((uint16_t)(cx + 48u), y, "--", 11u);
+            ui_draw_name_size(name_x, y, d->name,
+                              (uint16_t)(cx + HOME_DATA_RIGHT - name_x), HOME_TEXT_SIZE);
+        else ui_text_draw(name_x, y, "--", HOME_TEXT_SIZE);
     }
+    u8g2_SetFont(&u8g2, UI_FONT_CN);
 }
 
 /* 恢复出厂确认子页（re_flag==6）：两项，高亮由 rank3 决定（0=确认，其余=返回） */
@@ -1384,55 +1358,37 @@ void new_return(void)
 
     ui_draw(80, 80, "正在重启保存数据");
 }
-/* ==================================================================
- * 「安装调试」页（rank2_addr == 3，契约 §1.3）—— 按清单重做
- *
- *   rank3_addr：0 = 设备信号（RSSI） / 1 = 设备电压 / 2 = 返回
- *   re_flag   ：3 = 设备信号子页（20 通道 RSSI）
- *               4 = 设备电压子页（20 通道电压）
- *
- *   ★ 契约 §4.2（2026-09-22 冻结）：两个子页由"按 chu_num2 分 2 页、每页 10 条"
- *     改为**单页全屏双列**：左列通道 1..10、右列 11..20，一屏 20 条，不再分页
- *     （K1/K3 翻页对它们无效；chu_num2 仍由 0x01 帧下发、字段语义不变）。
- *   ★ 契约 §4.3：未绑定 / 不存在的通道画 `序号.-----`（第 3 通道 → 3.-----）；
- *     已绑定但本轮无数据的通道照旧显示上次值。
- *   ★ 契约 §4.4：纯显示页画「返回」（标题带右侧、固定高亮）；K2 落在返回项上
- *     ⇒ 回上一级（STM32 侧 sub2_close() 执行）。
- *   版式常量/行距说明见上方 PARAM_* 段落（列几何复用主页面，行距 13px）。
- *
- *   数据源：CH584M 本地 CH_com_buf[i].rssi / .voltage（observer.h:114-115），
- *   不是 STM32 下发的 shishi_buf（旧实现在这一点上是错的，已重做）。
- * ================================================================== */
+/* Installation: re_flag 3 = local RSSI, 4 = local voltage.
+ * Both use the supplied chu_num2 page; received/waiting semantics are unchanged. */
 static void install_ch_page(uint8_t kind, uint16_t page)
 {
-    char     buf[32];
-    uint8_t  i, row, col;
+    char buf[32];
+    uint8_t i, first = ui_param_first(page);
     uint16_t cx, y, w;
+    const char *label = (kind == 3u) ? "信号:" : "电压:";
+    uint16_t label_w = ui_text_width(label, HOME_TEXT_SIZE);
     device_t *d;
 
-    (void)page;                              /* 契约 §4.2：不再分页（入参保留以便审计页面码） */
-
-    ui_menu_header(UI_Select, 1u, (kind == 3) ? "信号" : "电压");
-
-    /* 双列分隔竖线：左列 1..10 / 右列 11..20 */
-    u8g2_DrawVLine(&u8g2, MAIN_COL_SPLIT_X, PARAM_VLINE_TOP, PARAM_VLINE_LEN);
-
-    for (i = 0; i < 20; i++)
+    ui_param_header(page, (kind == 3u) ? "信号" : "电压");
+    for (i = 0u; i < 10u; i++)
     {
-        row = (uint8_t)(i % PARAM_ROWS);              /* 0..9 */
-        col = (uint8_t)(i / PARAM_ROWS);              /* 0 = 左列 1..10，1 = 右列 11..20 */
-        cx  = (uint16_t)(col ? MAIN_CELL_R_X : MAIN_CELL_L_X);
-        y   = PARAM_ROW_BASE(row);
-        d   = &CH_com_buf[i];
-
-        sprintf(buf, "%02d", i + 1);
-        ui_text_draw(cx, y, buf, 11u);
-        ui_text_draw((uint16_t)(cx + MAIN_NUM_W), y, (kind == 3) ? "信号:" : "电压:", 11u);
+        uint8_t ch = (uint8_t)(first + i);
+        uint8_t size = HOME_TEXT_SIZE;
+        cx = (uint16_t)((i / HOME_ROWS) ? HOME_CELL_R_X : HOME_CELL_L_X);
+        y = (uint16_t)(HOME_GRID_TOP + 18u + HOME_ROW_H * (i % HOME_ROWS));
+        d = &CH_com_buf[ch];
+        ui_main_channel_badge(cx, y, (uint8_t)(ch + 1u));
+        ui_text_draw((uint16_t)(cx + HOME_NUM_W), y, label, HOME_TEXT_SIZE);
         if (!(d->valid && d->data_re_flag)) strcpy(buf, "--");
-        else if (kind == 3) sprintf(buf, "%d dBm", (int)(int8_t)d->rssi);
+        else if (kind == 3u) sprintf(buf, "%d dBm", (int)(int8_t)d->rssi);
         else sprintf(buf, "%d.%d V", d->voltage / 10, d->voltage % 10);
-        w = ui_text_width(buf, 11u);
-        ui_text_draw((uint16_t)(cx + MAIN_VAL_RIGHT - w), y, buf, 11u);
+        w = ui_text_width(buf, size);
+        if (HOME_NUM_W + label_w + 4u + w > HOME_DATA_RIGHT)
+        {
+            size = 16u;
+            w = ui_text_width(buf, size);
+        }
+        ui_text_draw((uint16_t)(cx + HOME_DATA_RIGHT - w), y, buf, size);
     }
 }
 
