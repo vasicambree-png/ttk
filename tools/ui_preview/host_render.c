@@ -1,0 +1,552 @@
+/* Offline framebuffer endpoint for the project's actual UI and u8g2 sources. */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+#include "yuying_TFT.h"
+#include "observer.h"
+
+u8g2_t u8g2;
+device_t CH_com_buf[MAX_CH_NUM];
+scan_binding g_binding_list[MAX_BINDING_NUM];
+scan_name_entry_t g_scan_name_cache[SCAN_NAME_CACHE_NUM];
+uint8_t g_binding_count, g_name_err_count, g_volt_err_count;
+uint32_t g_name_chk_sec;
+const u8g2_cb_t u8g2_cb_r3 = {0};
+extern data_LIST Data_list1;
+extern volatile uint8_t g_ui_msg;
+extern u8g2_uint_t real_u8g2_DrawUTF8(u8g2_t *, u8g2_uint_t, u8g2_uint_t, const char *);
+extern void real_u8g2_DrawXBM(u8g2_t *, u8g2_uint_t, u8g2_uint_t, u8g2_uint_t, u8g2_uint_t, const uint8_t *);
+extern void real_u8g2_DrawXBMP(u8g2_t *, u8g2_uint_t, u8g2_uint_t, u8g2_uint_t, u8g2_uint_t, const uint8_t *);
+extern void real_u8g2_DrawFrame(u8g2_t *, u8g2_uint_t, u8g2_uint_t, u8g2_uint_t, u8g2_uint_t);
+extern void real_u8g2_DrawBox(u8g2_t *, u8g2_uint_t, u8g2_uint_t, u8g2_uint_t, u8g2_uint_t);
+extern void real_u8g2_DrawRFrame(u8g2_t *, u8g2_uint_t, u8g2_uint_t, u8g2_uint_t, u8g2_uint_t, u8g2_uint_t);
+extern void real_u8g2_DrawRBox(u8g2_t *, u8g2_uint_t, u8g2_uint_t, u8g2_uint_t, u8g2_uint_t, u8g2_uint_t);
+
+static uint8_t pixels[SCREEN_HEIGHT][SCREEN_WIDTH];
+static const char *case_name = "init";
+static const char *draw_pass = "primary";
+static int text_active, text_left, text_top, text_right, text_bottom;
+static unsigned text_points;
+static unsigned missing_total, boundary_total, mutation_total, redraw_total, cases_total;
+static unsigned bitmap_state_total;
+static FILE *draw_log, *case_log;
+
+uint8_t count_used_channels(void) {
+    uint8_t i, n = 0;
+    for (i = 0; i < MAX_CH_NUM; ++i) n += !!CH_com_buf[i].valid;
+    return n;
+}
+uint8_t scan_name_cache_count(void) {
+    uint8_t i, n = 0;
+    for (i = 0; i < SCAN_NAME_CACHE_NUM; ++i) n += g_scan_name_cache[i].name[0] != 0;
+    return n;
+}
+const char *scan_name_cache_name(uint8_t i) {
+    return i < SCAN_NAME_CACHE_NUM ? (const char *)g_scan_name_cache[i].name : NULL;
+}
+
+/* Hardware endpoints are inert. They do not emulate the device or scheduler. */
+void u8x8_InitDisplay(u8x8_t *u) { (void)u; }
+void u8x8_SetPowerSave(u8x8_t *u, uint8_t a) { (void)u; (void)a; }
+#undef u8x8_gpio_SetCS
+uint8_t u8x8_gpio_SetCS(u8x8_t *u, uint8_t a) { (void)u; (void)a; return 1; }
+void u8g2_Setup_st7305_yuying_168x384_f(u8g2_t *u, const u8g2_cb_t *a, u8x8_msg_cb b, u8x8_msg_cb c) { (void)u; (void)a; (void)b; (void)c; }
+void u8g2_Setup_st7306_300x400_f(u8g2_t *u, const u8g2_cb_t *a, u8x8_msg_cb b, u8x8_msg_cb c) { (void)u; (void)a; (void)b; (void)c; }
+void u8x8_gpio_call(u8x8_t *u, uint8_t m, uint8_t a) { (void)u; (void)m; (void)a; }
+uint8_t u8x8_DrawTile(u8x8_t *u, uint8_t x, uint8_t y, uint8_t n, uint8_t *p) { (void)u; (void)x; (void)y; (void)n; (void)p; return 1; }
+uint8_t u8g2_GetKerning(u8g2_t *u, u8g2_kerning_t *k, uint16_t a, uint16_t b) { (void)u; (void)k; (void)a; (void)b; return 0; }
+uint8_t u8g2_GetKerningByTable(u8g2_t *u, const uint16_t *k, uint16_t a, uint16_t b) { (void)u; (void)k; (void)a; (void)b; return 0; }
+void u8g2_SetDrawColor(u8g2_t *u, uint8_t c) { u->draw_color = c; }
+void u8g2_ClearBuffer(u8g2_t *u) { (void)u; memset(pixels, 0, sizeof(pixels)); }
+void u8g2_SendBuffer(u8g2_t *u) { (void)u; }
+/* Retain out-of-bounds drawing requests so the validator can observe clipping. */
+uint8_t u8g2_IsIntersection(u8g2_t *u, u8g2_uint_t a, u8g2_uint_t b, u8g2_uint_t c, u8g2_uint_t d) { (void)u; (void)a; (void)b; (void)c; (void)d; return 1; }
+
+static void point(u8g2_t *u, int x, int y) {
+    /* White foreground glyphs (draw_color=0) have bounds too. */
+    if (text_active) {
+        ++text_points;
+        if (x < text_left) text_left = x;
+        if (y < text_top) text_top = y;
+        if (x > text_right) text_right = x;
+        if (y > text_bottom) text_bottom = y;
+    }
+    if (x < 0 || x >= SCREEN_WIDTH || y < 0 || y >= SCREEN_HEIGHT) {
+        if (!text_active) {
+            if (boundary_total < 100) fprintf(draw_log, "PIXEL_OUTSIDE\t%s\t%s\t%d\t%d\n", case_name, draw_pass, x, y);
+            ++boundary_total;
+        }
+        return;
+    }
+    if (u->draw_color == 2) pixels[y][x] ^= 1;
+    else pixels[y][x] = !!u->draw_color;
+}
+void u8g2_DrawHVLine(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, u8g2_uint_t n, uint8_t dir) {
+    unsigned i;
+    int xx = (int16_t)x, yy = (int16_t)y;
+    for (i = 0; i < n; ++i)
+        point(u, xx + (dir == 0 ? (int)i : dir == 2 ? -(int)i : 0),
+                 yy + (dir == 1 ? (int)i : dir == 3 ? -(int)i : 0));
+}
+void u8g2_DrawHLine(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, u8g2_uint_t n) { u8g2_DrawHVLine(u, x, y, n, 0); }
+void u8g2_DrawVLine(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, u8g2_uint_t n) { u8g2_DrawHVLine(u, x, y, n, 1); }
+void u8g2_DrawPixel(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y) { point(u, (int16_t)x, (int16_t)y); }
+
+static void check_box(const char *kind, unsigned x, unsigned y, unsigned w, unsigned h) {
+    int outside = x + w > SCREEN_WIDTH || y + h > SCREEN_HEIGHT;
+    fprintf(draw_log, "%s\t%s\t%s\t%u\t%u\t%u\t%u\t%d\n", kind, case_name, draw_pass, x, y, w, h, outside);
+    if (outside) ++boundary_total;
+}
+void u8g2_DrawFrame(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, u8g2_uint_t w, u8g2_uint_t h) { check_box("FRAME", x, y, w, h); real_u8g2_DrawFrame(u, x, y, w, h); }
+void u8g2_DrawBox(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, u8g2_uint_t w, u8g2_uint_t h) { check_box("BOX", x, y, w, h); real_u8g2_DrawBox(u, x, y, w, h); }
+void u8g2_DrawRFrame(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, u8g2_uint_t w, u8g2_uint_t h, u8g2_uint_t r) { check_box("RFRAME", x, y, w, h); real_u8g2_DrawRFrame(u, x, y, w, h, r); }
+void u8g2_DrawRBox(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, u8g2_uint_t w, u8g2_uint_t h, u8g2_uint_t r) { check_box("RBOX", x, y, w, h); real_u8g2_DrawRBox(u, x, y, w, h, r); }
+void u8g2_DrawXBM(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, u8g2_uint_t w, u8g2_uint_t h, const uint8_t *b) { check_box("XBM", x, y, w, h); real_u8g2_DrawXBM(u, x, y, w, h, b); }
+void u8g2_DrawXBMP(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, u8g2_uint_t w, u8g2_uint_t h, const uint8_t *b) { check_box("XBMP", x, y, w, h); real_u8g2_DrawXBMP(u, x, y, w, h, b); }
+
+static const char *font_name(const uint8_t *f) {
+    if (f == u8g2_font_wqy14_t_gb2312a) return "wqy14";
+    if (f == u8g2_font_helvB10_tr) return "helvB10";
+    if (f == u8g2_font_helvB12_tr) return "helvB12";
+    if (f == u8g2_font24_lunar) return "lunar24";
+    if (f == u8g2_font16_lunar) return "lunar16";
+    if (f == u8g2_font_5x8_tr) return "5x8";
+    return "other_project_font";
+}
+u8g2_uint_t u8g2_DrawUTF8(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, const char *s) {
+    unsigned i, missing = 0;
+    u8x8_t utf = {0};
+    uint16_t e;
+    char miss[512] = "", tmp[16];
+    u8g2_uint_t w = u8g2_GetUTF8Width(u, s), advance;
+    for (i = 0; s[i]; ++i) {
+        e = u8x8_utf8_next(&utf, (uint8_t)s[i]);
+        if (e < 0xfffe && !u8g2_IsGlyph(u, e)) {
+            ++missing;
+            snprintf(tmp, sizeof(tmp), "U+%04X,", e);
+            strncat(miss, tmp, sizeof(miss) - strlen(miss) - 1);
+        }
+    }
+    text_left = text_top = 32767;
+    text_right = text_bottom = -32768;
+    text_points = 0;
+    text_active = 1;
+    advance = real_u8g2_DrawUTF8(u, x, y, s);
+    text_active = 0;
+    if (!text_points) text_left = text_top = text_right = text_bottom = -1;
+    fprintf(draw_log, "TEXT\t%s\t%s\t%s\t%u\t%u\t%u\t%d\t%d\t%d\t%d\t%u\t%s\t%s\n",
+            case_name, draw_pass, font_name(u->font), x, y, w,
+            text_left, text_top, text_right, text_bottom, missing, miss, s);
+    missing_total += missing;
+    if (text_points && (text_left < 0 || text_top < 0 ||
+        text_right >= SCREEN_WIDTH || text_bottom >= SCREEN_HEIGHT)) ++boundary_total;
+    return advance;
+}
+
+static void init_graphics(void) {
+    memset(&u8g2, 0, sizeof(u8g2));
+    u8g2.width = SCREEN_WIDTH;
+    u8g2.height = SCREEN_HEIGHT;
+    u8g2.draw_color = 1;
+    u8g2_SetFontPosBaseline(&u8g2);
+    u8g2_SetFont(&u8g2, UI_FONT_CN);
+    u8g2_SetFontMode(&u8g2, 1);
+}
+static void save_pixels(const char *name) {
+    unsigned x, y;
+    char path[160];
+    FILE *f;
+    snprintf(path, sizeof(path), "%s.pgm", name);
+    f = fopen(path, "wb");
+    if (!f) { fprintf(stderr, "Cannot save %s\n", path); exit(2); }
+    fprintf(f, "P5\n%d %d\n255\n", SCREEN_WIDTH, SCREEN_HEIGHT);
+    for (y = 0; y < SCREEN_HEIGHT; ++y)
+        for (x = 0; x < SCREEN_WIDTH; ++x) fputc(pixels[y][x] ? 0 : 255, f);
+    fclose(f);
+}
+static void checked_draw(void) {
+    data_LIST data_before = Data_list1;
+    device_t channels_before[MAX_CH_NUM];
+    scan_binding bindings_before[MAX_BINDING_NUM];
+    scan_name_entry_t scan_before[SCAN_NAME_CACHE_NUM];
+    uint8_t binding_count_before = g_binding_count;
+    uint8_t name_errors_before = g_name_err_count, voltage_errors_before = g_volt_err_count;
+    uint32_t name_seconds_before = g_name_chk_sec;
+    uint8_t message_before = g_ui_msg;
+    uint8_t bitmap_mode_before = u8g2.bitmap_transparency;
+    memcpy(channels_before, CH_com_buf, sizeof(channels_before));
+    memcpy(bindings_before, g_binding_list, sizeof(bindings_before));
+    memcpy(scan_before, g_scan_name_cache, sizeof(scan_before));
+    UI_Control(&Data_list1);
+    if (bitmap_mode_before != u8g2.bitmap_transparency) {
+        ++bitmap_state_total;
+        fprintf(draw_log, "BITMAP_MODE_CHANGED\t%s\t%s\t%u\t%u\n", case_name, draw_pass,
+                bitmap_mode_before, u8g2.bitmap_transparency);
+    }
+    if (memcmp(&data_before, &Data_list1, sizeof(data_before)) ||
+        memcmp(channels_before, CH_com_buf, sizeof(channels_before)) ||
+        memcmp(bindings_before, g_binding_list, sizeof(bindings_before)) ||
+        memcmp(scan_before, g_scan_name_cache, sizeof(scan_before)) ||
+        binding_count_before != g_binding_count || name_errors_before != g_name_err_count ||
+        voltage_errors_before != g_volt_err_count || name_seconds_before != g_name_chk_sec ||
+        message_before != g_ui_msg) {
+        ++mutation_total;
+        fprintf(draw_log, "SOURCE_DATA_CHANGED\t%s\t%s\n", case_name, draw_pass);
+    }
+}
+static void render(const char *name, unsigned rank, unsigned menu, unsigned re, unsigned selected, unsigned page) {
+    static uint8_t primary[SCREEN_HEIGHT][SCREEN_WIDTH];
+    uint8_t bitmap_input = u8g2.bitmap_transparency;
+    unsigned missing_before = missing_total, boundary_before = boundary_total;
+    unsigned mutation_before = mutation_total, redraw_before = redraw_total;
+    unsigned bitmap_before = bitmap_state_total;
+    case_name = name;
+    Data_list1.menu_rank = (uint8_t)rank;
+    Data_list1.rank2_addr = (uint8_t)menu;
+    Data_list1.UI_main.re_flag = (uint8_t)re;
+    Data_list1.rank3_addr = (uint8_t)selected;
+    Data_list1.UI_main.chu_num1 = (uint16_t)page;
+    Data_list1.UI_main.chu_num2 = (uint16_t)page;
+    draw_pass = "primary";
+    checked_draw();
+    memcpy(primary, pixels, sizeof(primary));
+    save_pixels(name);
+    draw_pass = "continuous";
+    checked_draw();
+    if (memcmp(primary, pixels, sizeof(primary))) ++redraw_total;
+    init_graphics();
+    u8g2_SetBitmapMode(&u8g2, bitmap_input);
+    draw_pass = "independent";
+    checked_draw();
+    if (memcmp(primary, pixels, sizeof(primary))) ++redraw_total;
+    fprintf(case_log, "%s\t%u\t%u\t%u\t%u\t%u\t%u\t%u\t%u\t%u\t%u\n",
+            name, rank, menu, re, selected, page,
+            missing_total - missing_before, boundary_total - boundary_before,
+            mutation_total - mutation_before, redraw_total - redraw_before,
+            bitmap_state_total - bitmap_before);
+    ++cases_total;
+}
+
+static void init_data(int maximum) {
+    static const Sensor_Tpye types[10] = {TPYE_MG, TPYE_JG, TPYE_WY2, TPYE_LF, TPYE_QJ,
+        TPYE_YL, TPYE_YW, TPYE_WZ, TPYE_DY, TPYE_MG};
+    static const uint16_t values[10] = {523, 128, 235, 6, (uint16_t)(int16_t)-12, 186, 310, 42, 87, 631};
+    unsigned i, j;
+    init_graphics();
+    ui_show_msg(UI_MSG_NONE);
+    memset(&Data_list1, 0, sizeof(Data_list1));
+    memset(CH_com_buf, 0, sizeof(CH_com_buf));
+    memset(g_binding_list, 0, sizeof(g_binding_list));
+    memset(g_scan_name_cache, 0, sizeof(g_scan_name_cache));
+    Data_list1.UI_main.host_num = maximum ? 65535 : 41;
+    Data_list1.UI_main.sub_num = maximum ? 65535 : 30;
+    Data_list1.UI_main.send_host_num = maximum ? 65535 : 38;
+    Data_list1.UI_main.Lora_rssi = maximum ? 255 : 3;
+    Data_list1.UI_main.version = maximum ? 65535 : 10;
+    Data_list1.UI_main.vbat = maximum ? 65535 : 365;
+    Data_list1.UI_main.state = 1;
+    Data_list1.Menu_rank1.set_host_num = 41;
+    Data_list1.Menu_rank1.set_sub_num = 30;
+    Data_list1.Menu_rank2.xuhao_num = 1;
+    Data_list1.Menu_rank2.now_host_addr = 41;
+    Data_list1.Menu_rank2.text_host_addr = 38;
+    Data_list1.Menu_rank2.text_cnt = 5;
+    Data_list1.Menu_rank2.bl_numl = 3;
+    Data_list1.Menu_rank6.power = 10;
+    Data_list1.Menu_rank6.time_light = 30;
+    Data_list1.Menu_rank6.state = 1;
+    for (i = 0; i < 3; ++i) {
+        Data_list1.Menu_rank5.old_send_addr[i] = (uint16_t)(38 + i);
+        Data_list1.Menu_rank5.new_send_addr[i] = (uint16_t)(38 + i);
+    }
+    g_binding_count = maximum ? MAX_BINDING_NUM : 3;
+    g_name_err_count = maximum ? 16 : 1;
+    g_volt_err_count = maximum ? 255 : 1;
+    g_name_chk_sec = 0;
+    for (i = 0; i < MAX_BINDING_NUM; ++i) {
+        snprintf((char *)g_binding_list[i].name, MAX_NAME_LEN, "SW_%02u_WY_01-04", i + 1);
+        for (j = 0; j < 6; ++j) g_binding_list[i].mac[j] = (uint8_t)(i + j);
+    }
+    for (i = 0; i < MAX_CH_NUM; ++i) {
+        CH_com_buf[i].valid = 1;
+        CH_com_buf[i].Type = types[i % 10];
+        CH_com_buf[i].CH_data = maximum ? (CH_com_buf[i].Type == TPYE_QJ ? (uint16_t)(int16_t)-32768 : 65535) : values[i % 10];
+        CH_com_buf[i].voltage = maximum ? 255 : 35;
+        CH_com_buf[i].rssi = (uint8_t)(maximum ? -128 : -65);
+        memcpy(CH_com_buf[i].name, g_binding_list[i].name, MAX_NAME_LEN);
+    }
+    for (i = 0; i < SCAN_NAME_CACHE_NUM; ++i)
+        memcpy(g_scan_name_cache[i].name, g_binding_list[i].name, MAX_NAME_LEN);
+}
+
+static void longest_names(void) {
+    unsigned i;
+    for (i = 0; i < MAX_BINDING_NUM; ++i) {
+        memset(g_binding_list[i].name, 'W', MAX_NAME_LEN - 1);
+        g_binding_list[i].name[MAX_NAME_LEN - 1] = 0;
+    }
+    for (i = 0; i < MAX_CH_NUM; ++i)
+        memcpy(CH_com_buf[i].name, g_binding_list[i].name, MAX_NAME_LEN);
+    for (i = 0; i < SCAN_NAME_CACHE_NUM; ++i)
+        memcpy(g_scan_name_cache[i].name, g_binding_list[i].name, MAX_NAME_LEN);
+}
+
+static void render_menu_cases(void) {
+    static const unsigned focus_count[8] = {6, 4, 4, 3, 5, 8, 5, 1};
+    static const uint16_t address_values[] = {0, 121, 122, 65535};
+    static const uint16_t pages[] = {0, 1, 2, 65535};
+    static const int8_t rssi_values[] = {-128, -1, 0, 127};
+    static const uint8_t voltage_values[] = {0, 9, 10, 99, 100, 255};
+    unsigned m, s, re, i, n, mode, extreme;
+    char name[100];
+
+    init_data(0);
+    for (m = 0; m < 8; ++m) {
+        for (s = 0; s < focus_count[m]; ++s) {
+            snprintf(name, sizeof(name), "menu_all_%u_focus_%u", m, s);
+            render(name, 3, m, 0, s, 1);
+        }
+    }
+    for (re = 1; re <= 6; ++re) {
+        n = (re == 1 || re == 2 || re == 6) ? 2 : 1;
+        for (s = 0; s < n; ++s) {
+            snprintf(name, sizeof(name), "subpage_%u_button_%u", re, s);
+            render(name, 3, re <= 2 ? 2 : re <= 4 ? 3 : 6, re, s, 1);
+        }
+    }
+    for (mode = 0; mode <= 1; ++mode) {
+        for (m = 0; m < 8; ++m) {
+            u8g2_SetBitmapMode(&u8g2, (uint8_t)mode);
+            snprintf(name, sizeof(name), "menu_%u_bitmap_%u_left", m, mode);
+            render(name, 2, m, 0, 0, 1);
+            u8g2_SetBitmapMode(&u8g2, (uint8_t)mode);
+            snprintf(name, sizeof(name), "menu_%u_bitmap_%u_right", m, mode);
+            render(name, 3, m, 0, focus_count[m] - 1, 1);
+        }
+    }
+
+    init_data(0);
+    g_binding_count = 0;
+    memset(g_binding_list, 0, sizeof(g_binding_list));
+    memset(g_scan_name_cache, 0, sizeof(g_scan_name_cache));
+    render("menu_binding_empty", 3, 2, 0, 0, 1);
+    for (re = 1; re <= 2; ++re) {
+        for (s = 0; s < 2; ++s) {
+            snprintf(name, sizeof(name), "subpage_%u_empty_button_%u", re, s);
+            render(name, 3, 2, re, s, 1);
+        }
+    }
+    init_data(1);
+    longest_names();
+    render("menu_binding_full", 3, 2, 0, 0, 1);
+    for (i = 0; i < (MAX_BINDING_NUM + 2) / 3; ++i) {
+        g_name_chk_sec = i * 4;
+        for (s = 0; s < 2; ++s) {
+            snprintf(name, sizeof(name), "subpage_binding_full_cycle_%u_button_%u", i, s);
+            render(name, 3, 2, 1, s, 1);
+        }
+    }
+    for (s = 0; s < 2; ++s) {
+        snprintf(name, sizeof(name), "subpage_scan_longest_button_%u", s);
+        render(name, 3, 2, 2, s, 1);
+    }
+    for (i = 0; i < sizeof(pages) / sizeof(pages[0]); ++i) {
+        snprintf(name, sizeof(name), "menu_names_page_%u", pages[i]);
+        render(name, 3, 6, 5, 0, pages[i]);
+    }
+
+    init_data(0);
+    for (i = 0; i < MAX_CH_NUM; ++i) {
+        CH_com_buf[i].rssi = (uint8_t)rssi_values[i % 4];
+        CH_com_buf[i].voltage = voltage_values[i % 6];
+    }
+    for (i = 0; i < sizeof(pages) / sizeof(pages[0]); ++i) {
+        snprintf(name, sizeof(name), "menu_signal_page_%u", pages[i]);
+        render(name, 3, 3, 3, 0, pages[i]);
+        snprintf(name, sizeof(name), "menu_voltage_page_%u", pages[i]);
+        render(name, 3, 3, 4, 0, pages[i]);
+    }
+    memset(CH_com_buf, 0, sizeof(CH_com_buf));
+    for (re = 3; re <= 5; ++re) {
+        snprintf(name, sizeof(name), "subpage_%u_channels_empty", re);
+        render(name, 3, re == 5 ? 6 : 3, re, 0, 1);
+    }
+    init_data(0);
+    CH_com_buf[0].valid = 0;
+    CH_com_buf[1].name[0] = 0;
+    for (re = 3; re <= 5; ++re) {
+        snprintf(name, sizeof(name), "subpage_%u_channels_sparse", re);
+        render(name, 3, re == 5 ? 6 : 3, re, 0, 1);
+    }
+
+    for (i = 0; i < sizeof(address_values) / sizeof(address_values[0]); ++i) {
+        init_data(0);
+        for (m = 0; m < 3; ++m) {
+            Data_list1.Menu_rank5.old_send_addr[m] = address_values[i];
+            Data_list1.Menu_rank5.new_send_addr[m] = address_values[i];
+        }
+        for (s = 0; s < focus_count[4]; ++s) {
+            snprintf(name, sizeof(name), "menu_upload_value_%u_focus_%u", address_values[i], s);
+            render(name, 3, 4, 0, s, 1);
+        }
+        Data_list1.Menu_rank2.net_flag = 1;
+        Data_list1.Menu_rank2.now_host_addr = address_values[i];
+        Data_list1.Menu_rank2.text_host_addr = address_values[i];
+        snprintf(name, sizeof(name), "networking_address_%u", address_values[i]);
+        render(name, 3, 1, 0, 0, 1);
+    }
+    for (extreme = 0; extreme <= 1; ++extreme) {
+        init_data(0);
+        Data_list1.Menu_rank1.set_host_num = extreme ? 65535 : 0;
+        Data_list1.Menu_rank1.set_sub_num = extreme ? 65535 : 0;
+        for (s = 0; s < focus_count[0]; ++s) {
+            snprintf(name, sizeof(name), "menu_addr_%s_focus_%u", extreme ? "max" : "zero", s);
+            render(name, 3, 0, 0, s, 1);
+        }
+        Data_list1.Menu_rank2.net_flag = 1;
+        Data_list1.Menu_rank2.xuhao_num = extreme ? 65535 : 0;
+        Data_list1.Menu_rank2.now_host_addr = extreme ? 65535 : 0;
+        Data_list1.Menu_rank2.text_host_addr = extreme ? 65535 : 0;
+        Data_list1.Menu_rank2.text_cnt = extreme ? 65535 : 0;
+        Data_list1.Menu_rank2.bl_numl = extreme ? 65535 : 0;
+        snprintf(name, sizeof(name), "networking_values_%s", extreme ? "max" : "zero");
+        render(name, 3, 1, 0, 0, 1);
+        Data_list1.Menu_rank6.power = (char)(extreme ? 127 : -128);
+        Data_list1.Menu_rank6.time_light = extreme ? 65535 : 0;
+        Data_list1.Menu_rank6.state = (uint8_t)extreme;
+        for (s = 0; s < focus_count[5]; ++s) {
+            snprintf(name, sizeof(name), "menu_other_%s_focus_%u", extreme ? "max" : "min", s);
+            render(name, 3, 5, 0, s, 1);
+        }
+        g_name_err_count = extreme ? NAME_CHK_ERR_NUM : 0;
+        g_volt_err_count = extreme ? 255 : 0;
+        for (s = 0; s < focus_count[6]; ++s) {
+            snprintf(name, sizeof(name), "menu_summary_%s_focus_%u", extreme ? "max" : "zero", s);
+            render(name, 3, 6, 0, s, 1);
+        }
+    }
+
+    /* Carry font, color and bitmap context across alternating actual pages. */
+    init_data(0);
+    for (i = 0; i < 3; ++i) {
+        snprintf(name, sizeof(name), "transition_binding_%u", i);
+        render(name, 3, 2, 1, i % 2, 1);
+        snprintf(name, sizeof(name), "transition_voltage_%u", i);
+        render(name, 3, 3, 4, 0, 1);
+        snprintf(name, sizeof(name), "transition_menu_%u", i);
+        render(name, 2, 5, 0, 0, 1);
+        snprintf(name, sizeof(name), "home_after_menus_%u", i);
+        render(name, 1, 0, 0, 0, 1);
+        ui_show_msg(UI_MSG_PARAM_SAVE_OK);
+        snprintf(name, sizeof(name), "message_on_menu_%u", i);
+        render(name, 3, 6, 6, 0, 1);
+        ui_show_msg(UI_MSG_NONE);
+    }
+}
+
+static unsigned check_white_text_bounds(void) {
+    unsigned before, failures = 0;
+    init_graphics();
+    u8g2_SetFont(&u8g2, u8g2_font_5x8_tr);
+    u8g2_SetDrawColor(&u8g2, 0);
+    case_name = "validator_white_text";
+    before = boundary_total;
+    u8g2_DrawUTF8(&u8g2, SCREEN_WIDTH, 20, "W");
+    if (boundary_total == before) ++failures;
+    before = boundary_total;
+    u8g2_DrawUTF8(&u8g2, (u8g2_uint_t)-40, 20, "W");
+    if (boundary_total == before) ++failures;
+    boundary_total = missing_total = 0;
+    init_graphics();
+    return failures;
+}
+
+int main(int argc, char **argv) {
+    unsigned m, s, re;
+    unsigned endpoint_failures;
+    const char *scope = argc > 1 ? argv[1] : "home";
+    char name[100];
+    FILE *summary;
+    draw_log = fopen("draws.tsv", "wb");
+    case_log = fopen("cases.tsv", "wb");
+    if (!draw_log || !case_log) return 2;
+    if (strcmp(scope, "home") && strcmp(scope, "menus")) return 2;
+    endpoint_failures = check_white_text_bounds();
+    fprintf(case_log, "case\trank\tmenu\tsubpage\tselected\tpage\tmissing_glyphs\tboundary_events\tdata_mutations\tredraw_mismatches\tbitmap_state_changes\n");
+    init_data(0);
+    /* Screenshot example: ten active channels; the second page is tested separately. */
+    memset(CH_com_buf + 10, 0, sizeof(CH_com_buf[0]) * 10);
+    render("home_example", 1, 0, 0, 0, 1);
+    init_data(0);
+    render("home_page2", 1, 0, 0, 0, 2);
+    u8g2_SetBitmapMode(&u8g2, 1);
+    render("home_bitmap_mode_1", 1, 0, 0, 0, 1);
+    u8g2_SetBitmapMode(&u8g2, 0);
+    render("home_bitmap_mode_0", 1, 0, 0, 0, 1);
+    for (m = 0; m < 3; ++m) {
+        static const uint16_t addresses[] = {0, 121, 122};
+        Data_list1.UI_main.send_host_num = addresses[m];
+        snprintf(name, sizeof(name), "home_send_%u", addresses[m]);
+        render(name, 1, 0, 0, 0, 1);
+    }
+    Data_list1.UI_main.state = 0;
+    render("home_state_off", 1, 0, 0, 0, 1);
+    init_data(1);
+    render("home_uint16_max", 1, 0, 0, 0, 1);
+    render("home_page2_uint16_max", 1, 0, 0, 0, 2);
+    CH_com_buf[4].CH_data = (uint16_t)(int16_t)32767;
+    render("home_tilt_positive_max", 1, 0, 0, 0, 1);
+    memset(CH_com_buf, 0, sizeof(CH_com_buf));
+    g_binding_count = g_name_err_count = g_volt_err_count = 0;
+    render("home_empty", 1, 0, 0, 0, 1);
+    render("home_page2_empty", 1, 0, 0, 0, 2);
+    init_data(0);
+    CH_com_buf[0].Type = TPYE_NONE;
+    CH_com_buf[1].Type = TPYE_END;
+    CH_com_buf[2].valid = 0;
+    render("home_invalid_types", 1, 0, 0, 0, 1);
+    init_data(0);
+    for (m = 0; m < 8; ++m) {
+        snprintf(name, sizeof(name), "menu_%u", m);
+        render(name, 2, m, 0, 0, 1);
+        for (s = 0; s < 2; ++s) {
+            snprintf(name, sizeof(name), "menu_%u_focus_%u", m, s);
+            render(name, 3, m, 0, s, 1);
+        }
+    }
+    Data_list1.Menu_rank2.net_flag = 1;
+    render("networking_active", 3, 1, 0, 0, 1);
+    for (re = 1; re <= 6; ++re) {
+        snprintf(name, sizeof(name), "subpage_%u", re);
+        render(name, 3, re <= 2 ? 2 : re <= 4 ? 3 : 6, re, 0, 1);
+    }
+    for (s = 1; s <= 9; ++s) {
+        ui_show_msg((uint8_t)s);
+        snprintf(name, sizeof(name), "message_%u", s);
+        render(name, 1, 0, 0, 0, 1);
+    }
+    ui_show_msg(UI_MSG_PARAM_SAVE_OK);
+    (void)ui_msg_tick_sec();
+    render("save_message_tick1", 1, 0, 0, 0, 1);
+    (void)ui_msg_tick_sec();
+    render("save_message_tick2_home", 1, 0, 0, 0, 1);
+    ui_show_msg(UI_MSG_POWER_OFF);
+    for (s = 0; s < 10; ++s) (void)ui_msg_tick_sec();
+    render("power_off_message_tick10", 1, 0, 0, 0, 1);
+    ui_show_msg(UI_MSG_NONE);
+    render("restart_confirmation", 4, 0, 0, 0, 1);
+    if (!strcmp(scope, "menus")) render_menu_cases();
+    fclose(draw_log);
+    fclose(case_log);
+    summary = fopen("summary.json", "wb");
+    if (!summary) return 2;
+    fprintf(summary, "{\n  \"preview_scope\": \"%s\",\n  \"cases\": %u,\n  \"missing_glyph_occurrences\": %u,\n  \"boundary_events\": %u,\n  \"data_mutations\": %u,\n  \"redraw_mismatches\": %u,\n  \"bitmap_state_changes\": %u,\n  \"white_text_boundary_probe_failures\": %u,\n  \"text_bounds_include_draw_color_zero\": true\n}\n",
+            scope, cases_total, missing_total, boundary_total, mutation_total, redraw_total,
+            bitmap_state_total, endpoint_failures);
+    fclose(summary);
+    printf("cases=%u missing=%u boundary_events=%u data_mutations=%u redraw_mismatches=%u\n",
+           cases_total, missing_total, boundary_total, mutation_total, redraw_total);
+    return (missing_total || boundary_total || mutation_total || redraw_total ||
+            bitmap_state_total || endpoint_failures) ? 1 : 0;
+}

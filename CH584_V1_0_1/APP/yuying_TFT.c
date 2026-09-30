@@ -7,6 +7,8 @@
  *   异常计数、扫描名称缓存），这些类型与 extern 声明都在 observer.h 里。
  *   observer.h 自身 include yuying_TFT.h（有 include guard），无循环问题。 */
 #include "observer.h"
+#include "ui_home_assets.h"
+#include "ui_menu_assets.h"
 extern u8g2_t u8g2;
 data_LIST Data_list1;
 
@@ -398,42 +400,24 @@ void UI_Control(data_LIST *list)
    u8g2_SendBuffer(&u8g2);
 }
 /* ==================================================================
- * 主页面（menu_rank == 1）★ 2026-09-22 按用户提供的版式图重做
- *   版式图：D:\ai_work\1_tt.png（1280×560 = 384×168 的 3.3333 倍，宽高比完全一致）
- *   契约：02_协议文档\协议_主页面版式_冻结.md
+ * 主页面（menu_rank == 1）：按单色 384×168 屏幕适配工业仪表版式
  *
- * 版式（384×168 屏幕坐标；括号内为版式图量出的对应位置）：
- *   ┌──────────────────────────────────────────────────────────────┐ 外框 (1,1,382,166)
- *   │ ███ 粗顶边 (1,1,382,3)          〔图上 y 1..4〕                │
- *   │            矿用巷道综合测站（居中）                            │ baseline 18
- *   │  主机1 分站2 发往中继 信号3                                    │ baseline 34
- *   │                            版本V1.0 电池3.65V 开机              │ baseline 48
- *   ├──────────────────────────────────────────────────────────────┤ y=51 / y=53 双线
- *   │ 01 锚杆  51 kN           ┃ 06 位移 3105 mm                    │ baseline 66〔y56..68〕
- *   ├──────────────────────────╂───────────────────────────────────┤ y=71〔y70..71〕
- *   │ 02 …                     ┃ 07 …                              │ baseline 84〔y74..86〕
- *   ├──────────────────────────╂───────────────────────────────────┤ y=89
- *   │ 03 …                     ┃ 08 …                              │ baseline 102〔y92..104〕
- *   ├──────────────────────────╂───────────────────────────────────┤ y=107
- *   │ 04 …                     ┃ 09 …                              │ baseline 120〔y110..122〕
- *   ├──────────────────────────╂───────────────────────────────────┤ y=125
- *   │ 05 …                     ┃ 10 …                              │ baseline 138〔y128..140〕
- *   ├──────────────────────────────────────────────────────────────┤ y=143〔y142〕
- *   │▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│ y=145/147 粗双线〔y142..147〕
- *   │ [已绑定 3]  [已用通道 9]  [报警 2]                            │ baseline 162〔y154..166〕
- *   └──────────────────────────────────────────────────────────────┘
+ * 版式：双层切角外框；品牌、标题与电池值同排；状态和地址占一行；
+ *       左右切角数据栏各 5 行；底部三段统计栏。
  *
- * 网格：**5 行 × 2 列 = 10 格，每格 1 个通道**（用户确认），右列紧接左列：
+ * 网格：**5 行 × 2 列 = 10 格，每格 1 个通道**，右列紧接左列：
  *   第 1 页 = 通道 1..10（左列 1..5，右列 6..10）
  *   第 2 页 = 通道 11..20（左列 11..15，右列 16..20）
  *   分页由 0x01 帧的 chu_num1 决定（== 2 为第 2 页，其余按第 1 页）。
- * 每格一行式：`编号(2 位) 类型名 数值(右对齐) 单位`
+ * 每格一行式：`切角编号 类型名 数值(右对齐) 单位`
  *   数值：MG/位移/应力/倾角 = 原始值/10，保留一位小数（倾角按有符号），激光原样
  *   单位：kN（锚杆）/ mm（位移·激光·裂缝）/ °（倾角）/ MPa（应力）（契约 §4.2）
  *
- * 数据分工：STM32 提供 主机/分站/发往/信号/版本/电池/状态/页码；
+ * 数据分工：STM32 仍提供全部元数据；主页按参考图显示状态/本机号/分站/电池，
+ *           版本和信号字段暂不占用主页版面；
  *           CH584M 本地提供 已绑定数、已用通道数、告警数、20 通道类型与数值。
  * ================================================================== */
+/* MAIN_* 几何常量仍供其他20通道子页复用，数值保持原样。 */
 #define MAIN_GRID_TOP     53                        /* 网格上边线 */
 #define MAIN_ROW_H        18                        /* 行高（14px 字 + 4px 间隔） */
 #define MAIN_ROWS         5                         /* 行数 */
@@ -446,61 +430,249 @@ void UI_Control(data_LIST *list)
 #define MAIN_UNIT_X       154                       /* 单位起点（相对格起点） */
 #define MAIN_ROW_BASE(i)  ((uint8_t)(MAIN_GRID_TOP + 13 + MAIN_ROW_H * (i)))
 
+/* 主页专用坐标，避免影响信号、电压和名称子页。 */
+#define HOME_GRID_TOP     46
+#define HOME_ROW_H        19
+#define HOME_ROWS         5
+#define HOME_COL_SPLIT_X  192
+#define HOME_CELL_L_X     14
+#define HOME_CELL_R_X     203
+#define HOME_NUM_W        24
+#define HOME_DATA_RIGHT   166
+#define HOME_ROW_BASE(i)  ((uint8_t)(HOME_GRID_TOP + 14 + HOME_ROW_H * (i)))
+
+/* 切角横纵跨度相等，保持 45 度直线，供主页各类边框共用。 */
+static void ui_main_cut_frame(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
+                              uint8_t cut)
+{
+    uint16_t right = (uint16_t)(x + w - 1u);
+    uint16_t bottom = (uint16_t)(y + h - 1u);
+    uint8_t cut_y = cut;
+
+    u8g2_DrawLine(&u8g2, (u8g2_uint_t)(x + cut), (u8g2_uint_t)y,
+                  (u8g2_uint_t)(right - cut), (u8g2_uint_t)y);
+    u8g2_DrawLine(&u8g2, (u8g2_uint_t)(right - cut), (u8g2_uint_t)y,
+                  (u8g2_uint_t)right, (u8g2_uint_t)(y + cut_y));
+    u8g2_DrawLine(&u8g2, (u8g2_uint_t)right, (u8g2_uint_t)(y + cut_y),
+                  (u8g2_uint_t)right, (u8g2_uint_t)(bottom - cut_y));
+    u8g2_DrawLine(&u8g2, (u8g2_uint_t)right, (u8g2_uint_t)(bottom - cut_y),
+                  (u8g2_uint_t)(right - cut), (u8g2_uint_t)bottom);
+    u8g2_DrawLine(&u8g2, (u8g2_uint_t)(right - cut), (u8g2_uint_t)bottom,
+                  (u8g2_uint_t)(x + cut), (u8g2_uint_t)bottom);
+    u8g2_DrawLine(&u8g2, (u8g2_uint_t)(x + cut), (u8g2_uint_t)bottom,
+                  (u8g2_uint_t)x, (u8g2_uint_t)(bottom - cut_y));
+    u8g2_DrawLine(&u8g2, (u8g2_uint_t)x, (u8g2_uint_t)(bottom - cut_y),
+                  (u8g2_uint_t)x, (u8g2_uint_t)(y + cut_y));
+    u8g2_DrawLine(&u8g2, (u8g2_uint_t)x, (u8g2_uint_t)(y + cut_y),
+                  (u8g2_uint_t)(x + cut), (u8g2_uint_t)y);
+}
+
+/* 品牌只包含参考图的标识；数值与状态不进入静态资源。 */
+static void ui_main_draw_brand(void)
+{
+    u8g2_DrawXBMP(&u8g2, 9u, 5u, UI_HOME_BRAND_WIDTH, UI_HOME_BRAND_HEIGHT,
+                  ui_home_brand);
+}
+
+/* 斜牌与双斜纹均为 45 度平行直线，按屏幕中心镜像。 */
+static void ui_main_draw_title(void)
+{
+    uint8_t row, stripe, offset;
+    uint16_t left;
+
+    for (row = 0u; row < 27u; row++)
+    {
+        left = (uint16_t)(72u + row);
+        u8g2_DrawHLine(&u8g2, left, (uint16_t)(2u + row), 17u);
+        u8g2_DrawHLine(&u8g2, (uint16_t)(383u - left - 16u),
+                       (uint16_t)(2u + row), 17u);
+    }
+    u8g2_SetDrawColor(&u8g2, 0);
+    for (stripe = 0u; stripe < 2u; stripe++)
+        for (offset = 0u; offset < 2u; offset++)
+        {
+            left = (uint16_t)(79u + stripe * 6u + offset);
+            u8g2_DrawLine(&u8g2, left, 4u, (uint16_t)(left + 21u), 25u);
+            u8g2_DrawLine(&u8g2, (uint16_t)(383u - left), 4u,
+                          (uint16_t)(383u - left - 21u), 25u);
+        }
+    u8g2_SetDrawColor(&u8g2, 1);
+    u8g2_DrawHLine(&u8g2, 98u, 28u, 188u);
+    u8g2_DrawXBMP(&u8g2, 112u, 6u, UI_HOME_TITLE_WIDTH, UI_HOME_TITLE_HEIGHT,
+                  ui_home_title);
+}
+
+/* 状态行独立小字库，保持混排基线；不改变菜单共用字体。 */
+static uint16_t ui_main_meta_code(const uint8_t **cursor)
+{
+    const uint8_t *p = *cursor;
+    uint16_t code = *p++;
+    if ((code & 0xe0u) == 0xc0u && (p[0] & 0xc0u) == 0x80u)
+    {
+        code = (uint16_t)(((code & 0x1fu) << 6u) | (p[0] & 0x3fu));
+        p++;
+    }
+    else if ((code & 0xf0u) == 0xe0u && (p[0] & 0xc0u) == 0x80u &&
+             (p[1] & 0xc0u) == 0x80u)
+    {
+        code = (uint16_t)(((code & 0x0fu) << 12u) |
+                          ((p[0] & 0x3fu) << 6u) | (p[1] & 0x3fu));
+        p += 2;
+    }
+    *cursor = p;
+    return code;
+}
+
+static const ui_home_glyph_t *ui_main_meta_glyph(uint16_t code)
+{
+    uint8_t i;
+    for (i = 0u; i < sizeof(ui_home_meta_glyphs) / sizeof(ui_home_meta_glyphs[0]); i++)
+        if (ui_home_meta_glyphs[i].code == code) return &ui_home_meta_glyphs[i];
+    return NULL;
+}
+
+static uint16_t ui_main_meta_width(const char *text)
+{
+    const uint8_t *cursor = (const uint8_t *)text;
+    uint16_t width = 0u;
+    while (*cursor != '\0')
+    {
+        const ui_home_glyph_t *glyph = ui_main_meta_glyph(ui_main_meta_code(&cursor));
+        width = (uint16_t)(width + (glyph ? glyph->width : 6u));
+    }
+    return width;
+}
+
+static void ui_main_meta_draw(uint16_t x, uint16_t baseline, const char *text)
+{
+    const uint8_t *cursor = (const uint8_t *)text;
+    while (*cursor != '\0')
+    {
+        const ui_home_glyph_t *glyph = ui_main_meta_glyph(ui_main_meta_code(&cursor));
+        if (glyph)
+        {
+            u8g2_DrawXBMP(&u8g2, x, (uint16_t)(baseline - UI_HOME_META_BASELINE),
+                          glyph->width, UI_HOME_META_HEIGHT, glyph->bits);
+            x = (uint16_t)(x + glyph->width);
+        }
+        else
+        {
+            u8g2_SetFont(&u8g2, u8g2_font_5x8_tr);
+            ui_draw(x, baseline, "?");
+            u8g2_SetFont(&u8g2, UI_FONT_CN);
+            x = (uint16_t)(x + 6u);
+        }
+    }
+}
+
+/* 只增强主页类型标签，名称和类型映射仍使用现有 CH_TYPE_NAME。 */
+static void ui_main_draw_type(uint16_t x, uint16_t baseline, const char *text)
+{
+    uint8_t i;
+    for (i = 0u; i < sizeof(ui_home_labels) / sizeof(ui_home_labels[0]); i++)
+        if (strcmp(text, ui_home_labels[i].text) == 0)
+        {
+            u8g2_DrawXBMP(&u8g2, x, (uint16_t)(baseline - 12u),
+                          28u, 15u, ui_home_labels[i].bits);
+            return;
+        }
+    ui_draw(x, baseline, text);
+}
+
+/* 通道号在徽标中居中，并为两位数与框线保留一像素空白。 */
+static void ui_main_channel_badge(uint16_t x, uint16_t baseline, uint8_t channel)
+{
+    char label[4];
+    uint16_t label_width;
+    uint16_t top = (uint16_t)(baseline - 12u);
+
+    ui_main_cut_frame(x, top, 20u, 15u, 2u);
+    sprintf(label, "%u", (unsigned int)channel);
+    u8g2_SetFont(&u8g2, u8g2_font_helvB10_tr);
+    label_width = (uint16_t)u8g2_GetUTF8Width(&u8g2, label);
+    ui_draw((uint16_t)(x + (20u - label_width) / 2u),
+            (uint16_t)(baseline + 1u), label);
+    u8g2_SetFont(&u8g2, UI_FONT_CN);
+}
+
 void UI_Main_Display(data_LIST *pData)
 {
     char     buf[48];
     char     send_str[12];
     uint8_t  i, first, page, row, col, cx, y;
+    uint8_t  bitmap_mode = u8g2.bitmap_transparency;
     uint16_t w;
 
     u8g2_SetDrawColor(&u8g2, 1);
     u8g2_SetFontMode(&u8g2, 1);
     u8g2_SetFont(&u8g2, UI_FONT_CN);          /* 中文全字库，见文件顶部说明 */
 
-    /* ---------- 外框 + 粗顶边（版式图四周有框、顶部为粗条） ---------- */
-    u8g2_DrawFrame(&u8g2, 1, 1, 382, 166);
-    u8g2_DrawBox(&u8g2, 1, 1, 382, 3);
+    /* ---------- 双层切角外框、左侧品牌区与中部标题牌 ---------- */
+    u8g2_SetBitmapMode(&u8g2, 1);
+    ui_main_cut_frame(1u, 1u, 382u, 166u, 10u);
+    /* 保持外侧两像素、内侧一像素，切角端点与直边对齐。 */
+    ui_main_cut_frame(2u, 2u, 380u, 164u, 9u);
+    ui_main_cut_frame(4u, 4u, 376u, 160u, 7u);
+    ui_main_draw_brand();
+    ui_main_draw_title();
 
-    /* ---------- 大标题（居中，版式图标题位于屏幕中段） ---------- */
-    {
-        const char *title = "矿用巷道综合测站";
-        w = (uint16_t)u8g2_GetUTF8Width(&u8g2, title);
-        ui_draw((uint16_t)((384 - w) / 2), 18, title);
-    }
+    /* 电池电压仍取主控字段，排版与参考图一致地置于右上角。 */
+    sprintf(buf, "%d.%d%dV",
+            pData->UI_main.vbat / 100, pData->UI_main.vbat % 100 / 10,
+            pData->UI_main.vbat % 100 % 10);
+    u8g2_SetFont(&u8g2, u8g2_font_helvB10_tr);
+    w = (uint16_t)u8g2_GetUTF8Width(&u8g2, buf);
+    ui_draw((uint16_t)(372u - w), 20u, buf);
+    u8g2_SetFont(&u8g2, UI_FONT_CN);
 
-    /* ---------- 状态行：主机/分站/发往/信号 + 版本/电池/开关机 ---------- */
+    /* ---------- 状态、本机号和分站号：只重排显示，不改字段来源 ---------- */
     if (pData->UI_main.send_host_num == 122)      sprintf(send_str, "分站");
     else if (pData->UI_main.send_host_num == 121) sprintf(send_str, "无");
     else if (pData->UI_main.send_host_num == 0)   sprintf(send_str, "中继");
     else                                          sprintf(send_str, "%d", pData->UI_main.send_host_num);
 
-    sprintf(buf, "主机%d 分站%d 发往%s 信号%d",
-            pData->UI_main.host_num, pData->UI_main.sub_num, send_str,
-            pData->UI_main.Lora_rssi);
-    ui_draw(8, 34, buf);
+    {
+        uint16_t state_w, machine_w, station_w, state_x, machine_x, station_x;
+        const char *state = (pData->UI_main.state == 1) ? "开机" : "关机";
 
-    /* ★ 契约 §6.5：On/Off 语义统一为 STM32 口径（1 = 开机/工作，0 = 关机）
-     * ⚠️ 标签「版本 / 电池」必须保留 —— 功能清单契约要求主页含 STM32 六项
-     *    （主机/分站/发往/信号/版本/电池），删掉标签会被跨端套件判为回归。
-     *    单独占一行，避免长地址与版本/电池/状态互相覆盖或被宽度条件隐藏。 */
-    sprintf(buf, "版本V%d.%d 电池%d.%d%dV %s",
-            pData->UI_main.version / 10, pData->UI_main.version % 10,
-            pData->UI_main.vbat / 100, pData->UI_main.vbat % 100 / 10,
-            pData->UI_main.vbat % 100 % 10,
-            (pData->UI_main.state == 1) ? "开机" : "关机");
-    w = (uint16_t)u8g2_GetUTF8Width(&u8g2, buf);
-    ui_draw((uint16_t)(384 - 8 - w), 48, buf);
+        sprintf(buf, "状态：%s", state);
+        state_w = ui_main_meta_width(buf);
+        sprintf(buf, "本机号：%d-->%s", pData->UI_main.host_num, send_str);
+        machine_w = ui_main_meta_width(buf);
+        sprintf(buf, "分站：%d", pData->UI_main.sub_num);
+        station_w = ui_main_meta_width(buf);
+        station_x = (uint16_t)(374u - station_w);
+        machine_x = (uint16_t)(station_x - 12u - machine_w);
+        state_x = (uint16_t)(machine_x - 18u - state_w);
 
-    /* ---------- 分隔线：表头双线 + 网格线（版式图对应位置） ---------- */
-    u8g2_DrawHLine(&u8g2, 3, 51, 378);
-    u8g2_DrawHLine(&u8g2, 3, 53, 378);
+        if (state_x > 94u)
+            u8g2_DrawHLine(&u8g2, (uint16_t)(state_x - 29u), 35u, 23u);
+        u8g2_DrawHLine(&u8g2, (uint16_t)(state_x + state_w + 5u), 35u, 8u);
 
-    for (i = 1; i <= MAIN_ROWS; i++)
-        u8g2_DrawHLine(&u8g2, 3, (uint8_t)(MAIN_GRID_TOP + MAIN_ROW_H * i), 378);
-    u8g2_DrawVLine(&u8g2, MAIN_COL_SPLIT_X, MAIN_GRID_TOP,
-                   (uint8_t)(MAIN_ROW_H * MAIN_ROWS));
+        sprintf(buf, "状态：%s", state);
+        ui_main_meta_draw(state_x, 39u, buf);
+        sprintf(buf, "本机号：%d-->%s", pData->UI_main.host_num, send_str);
+        ui_main_meta_draw(machine_x, 39u, buf);
+        sprintf(buf, "分站：%d", pData->UI_main.sub_num);
+        ui_main_meta_draw(station_x, 39u, buf);
+    }
 
-    /* ---------- 通道网格：5 行 × 2 列 = 10 格，每格 1 个通道 ---------- */
+    /* ---------- 状态栏下沿、左右数据框与中央分隔线 ---------- */
+    u8g2_DrawHLine(&u8g2, 9u, 42u, 366u);
+    u8g2_DrawLine(&u8g2, 1u, 34u, 9u, 42u);
+    u8g2_DrawLine(&u8g2, 382u, 34u, 374u, 42u);
+    ui_main_cut_frame(7u, HOME_GRID_TOP, 181u, 98u, 6u);
+    ui_main_cut_frame(196u, HOME_GRID_TOP, 181u, 98u, 6u);
+
+    for (i = 1; i < HOME_ROWS; i++)
+    {
+        uint8_t line_y = (uint8_t)(HOME_GRID_TOP + HOME_ROW_H * i);
+        u8g2_DrawHLine(&u8g2, 7u, line_y, 181u);
+        u8g2_DrawHLine(&u8g2, 196u, line_y, 181u);
+    }
+    u8g2_DrawVLine(&u8g2, HOME_COL_SPLIT_X, 43u, 101u);
+
+    /* ---------- 通道网格：分页、类型、值和单位处理保持原样 ---------- */
     page  = (pData->UI_main.chu_num1 == 2) ? 2 : 1;
     first = (uint8_t)((page == 1) ? 0 : 10);
 
@@ -509,132 +681,222 @@ void UI_Main_Display(data_LIST *pData)
         uint8_t   ch  = (uint8_t)(first + i);
         device_t *d   = &CH_com_buf[ch];
 
-        row = (uint8_t)(i % MAIN_ROWS);                /* 0..4 */
-        col = (uint8_t)(i / MAIN_ROWS);                /* 0 = 左列，1 = 右列 */
-        cx  = (uint8_t)(col ? MAIN_CELL_R_X : MAIN_CELL_L_X);
-        y   = MAIN_ROW_BASE(row);
+        row = (uint8_t)(i % HOME_ROWS);                /* 0..4 */
+        col = (uint8_t)(i / HOME_ROWS);                /* 0 = 左列，1 = 右列 */
+        cx  = (uint8_t)(col ? HOME_CELL_R_X : HOME_CELL_L_X);
+        y   = HOME_ROW_BASE(row);
 
+        ui_main_channel_badge(cx, y, (uint8_t)(ch + 1u));
         if (d->valid && d->Type > TPYE_NONE && d->Type < TPYE_END)
         {
-            sprintf(buf, "%02d", ch + 1);                  /* 通道号 01..20 */
-            ui_draw(cx, y, buf);
-
-            ui_draw((uint16_t)(cx + MAIN_NUM_W), y, CH_TYPE_NAME[d->Type]);   /* 类型 */
+            uint16_t value_w, unit_w, unit_x;
+            const char *unit = CH_TYPE_UNIT[d->Type];
+            const uint8_t *unit_font = (d->Type == TPYE_QJ)
+                                       ? UI_FONT_CN : u8g2_font_helvB10_tr;
+            ui_main_draw_type((uint16_t)(cx + HOME_NUM_W), y, CH_TYPE_NAME[d->Type]);
             /* ★ 契约 §4.1：MG / 位移 / 应力 / 倾角 显示 = 原始值/10（QJ 有符号）；激光原样 */
             ch_disp_format(buf, sizeof(buf), (Sensor_Tpye)d->Type, d->CH_data);
-            w = (uint16_t)u8g2_GetUTF8Width(&u8g2, buf);
-            ui_draw((uint16_t)(cx + MAIN_VAL_RIGHT - w), y, buf);             /* 数值右对齐 */
-            if (CH_TYPE_UNIT[d->Type][0] != '\0')
-                ui_draw((uint16_t)(cx + MAIN_UNIT_X), y, CH_TYPE_UNIT[d->Type]); /* 单位 */
+            u8g2_SetFont(&u8g2, unit_font);
+            unit_w = (uint16_t)u8g2_GetUTF8Width(&u8g2, unit);
+            unit_x = (uint16_t)(cx + HOME_DATA_RIGHT - unit_w);
+            u8g2_SetFont(&u8g2, u8g2_font_helvB12_tr);
+            value_w = (uint16_t)u8g2_GetUTF8Width(&u8g2, buf);
+            ui_draw((uint16_t)(unit_x - (unit_w ? 4u : 0u) - value_w), y, buf);
+            if (unit_w)
+            {
+                u8g2_SetFont(&u8g2, unit_font);
+                ui_draw(unit_x, y, unit);
+            }
+            u8g2_SetFont(&u8g2, UI_FONT_CN);
         }
         else
         {
-            /* ★ 契约 §4.3：未绑定 / 不存在的通道显示 **`序号.-----`**
-             *   （例：第 3 通道 → `3.-----`）。整行作为**一个字符串**画出，
-             *   序号不补零，与契约示例逐字符一致（不再画旧的 `--` 占位符）。 */
-            sprintf(buf, "%d.-----", ch + 1);
-            ui_draw(cx, y, buf);
+            /* 序号已在切角徽标中显示；横线表示该通道尚无有效数据。 */
+            ui_draw((uint16_t)(cx + HOME_NUM_W), y, "-----");
         }
     }
 
-    /* ---------- 底部：粗双线 + 三个方框字段（版式图底部为方框区） ---------- */
-    u8g2_DrawHLine(&u8g2, 3, 143, 378);
-    u8g2_DrawHLine(&u8g2, 3, 145, 378);
-    u8g2_DrawHLine(&u8g2, 3, 147, 378);
+    /* ---------- 底部三段统计栏：与参考图一致用冒号和竖线分隔 ---------- */
+    ui_main_cut_frame(6u, 147u, 372u, 17u, 4u);
+    u8g2_DrawVLine(&u8g2, 132u, 150u, 11u);
+    u8g2_DrawVLine(&u8g2, 250u, 150u, 11u);
 
-    u8g2_DrawFrame(&u8g2, 4,   149, 122, 16);
-    u8g2_DrawFrame(&u8g2, 130, 149, 124, 16);
-    u8g2_DrawFrame(&u8g2, 258, 149, 122, 16);
+    sprintf(buf, "已绑定: %d", g_binding_count);
+    w = (uint16_t)u8g2_GetUTF8Width(&u8g2, buf);
+    ui_draw((uint16_t)(7u + (125u - w) / 2u), 161u, buf);
+    sprintf(buf, "已用通道: %d", count_used_channels());
+    w = (uint16_t)u8g2_GetUTF8Width(&u8g2, buf);
+    ui_draw((uint16_t)(133u + (116u - w) / 2u), 161u, buf);
+    sprintf(buf, "报警: %d", (int)(g_name_err_count + g_volt_err_count));
+    w = (uint16_t)u8g2_GetUTF8Width(&u8g2, buf);
+    ui_draw((uint16_t)(250u + (126u - w) / 2u), 161u, buf);
+    u8g2_SetBitmapMode(&u8g2, bitmap_mode);
+}
 
-    sprintf(buf, "已绑定%d", g_binding_count);
-    ui_draw(10, 162, buf);
-    sprintf(buf, "已用通道%d", count_used_channels());
-    ui_draw(136, 162, buf);
-    sprintf(buf, "报警%d", (int)(g_name_err_count + g_volt_err_count));
-    ui_draw(264, 162, buf);
+/* Menu-only artwork and layout. Runtime fields and selection IDs stay intact. */
+static const ui_menu_glyph_t *ui_menu_glyph(uint16_t code, uint8_t size)
+{
+    const ui_menu_glyph_t *table = (size == 18u) ? ui_menu_glyphs_18 : ui_menu_glyphs_16;
+    uint16_t count = (uint16_t)(sizeof(ui_menu_glyphs_16) / sizeof(ui_menu_glyphs_16[0]));
+    uint16_t i;
+    for (i = 0u; i < count; i++)
+        if (table[i].code == code) return &table[i];
+    return NULL;
+}
+
+static uint16_t ui_menu_text_width(const char *text, uint8_t size)
+{
+    const uint8_t *cursor = (const uint8_t *)text;
+    uint16_t width = 0u;
+    while (*cursor != '\0')
+    {
+        const ui_menu_glyph_t *glyph = ui_menu_glyph(ui_main_meta_code(&cursor), size);
+        width = (uint16_t)(width + (glyph ? glyph->width : size));
+    }
+    return width;
+}
+
+static void ui_menu_text(uint16_t x, uint16_t baseline, const char *text, uint8_t size)
+{
+    const uint8_t *cursor = (const uint8_t *)text;
+    while (*cursor != '\0')
+    {
+        const ui_menu_glyph_t *glyph = ui_menu_glyph(ui_main_meta_code(&cursor), size);
+        if (glyph == NULL) glyph = ui_menu_glyph('?', size);
+        if (glyph != NULL)
+        {
+            u8g2_DrawXBMP(&u8g2, x, (uint16_t)(baseline - size + 1u),
+                          glyph->width, (uint16_t)(size + 2u), glyph->bits);
+            x = (uint16_t)(x + glyph->width);
+        }
+    }
+}
+
+static uint8_t ui_menu_selected(uint8_t option)
+{
+    return (uint8_t)(Data_list1.menu_rank == 3u && Data_list1.rank3_addr == option);
+}
+
+/* A single selected control is inverted; passive field outlines stay thin. */
+static void ui_menu_control(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
+                            const char *text, uint8_t selected, uint8_t centered)
+{
+    uint16_t tw = ui_menu_text_width(text, 16u);
+    uint16_t tx;
+    u8g2_SetDrawColor(&u8g2, 0);
+    if (selected) u8g2_DrawBox(&u8g2, x, y, w, h);
+    else u8g2_DrawFrame(&u8g2, x, y, w, h);
+    u8g2_SetDrawColor(&u8g2, selected ? 1u : 0u);
+    if (tw <= w - 8u)
+    {
+        tx = centered ? (uint16_t)(x + (w - tw) / 2u) : (uint16_t)(x + 5u);
+        ui_menu_text(tx, (uint16_t)(y + (h - 18u) / 2u + 15u), text, 16u);
+    }
+    else
+    {
+        /* Long counters use the existing complete Chinese font, not clipping. */
+        u8g2_SetFont(&u8g2, UI_FONT_CN);
+        tw = (uint16_t)u8g2_GetUTF8Width(&u8g2, text);
+        tx = centered && tw <= w - 8u ? (uint16_t)(x + (w - tw) / 2u) : (uint16_t)(x + 5u);
+        ui_draw(tx, (uint16_t)(y + (h - 14u) / 2u + 12u), text);
+    }
+    u8g2_SetDrawColor(&u8g2, 0);
+    u8g2_SetFont(&u8g2, UI_FONT_CN);
+}
+
+static void ui_menu_button(uint8_t right, const char *text, uint8_t selected)
+{
+    ui_menu_control(right ? 247u : 117u, 137u, 128u, 25u, text, selected, 1u);
+}
+
+static void ui_menu_field(uint16_t y, const char *label, const char *value,
+                          uint8_t label_selected, uint8_t value_selected)
+{
+    u8g2_SetDrawColor(&u8g2, 0);
+    u8g2_DrawFrame(&u8g2, 117u, y, 207u, 27u);
+    if (label_selected) u8g2_DrawBox(&u8g2, 119u, (uint16_t)(y + 2u), 117u, 23u);
+    if (value_selected) u8g2_DrawBox(&u8g2, 238u, (uint16_t)(y + 2u), 84u, 23u);
+    u8g2_SetDrawColor(&u8g2, label_selected ? 1u : 0u);
+    ui_menu_text(122u, (uint16_t)(y + 20u), label, 16u);
+    u8g2_SetDrawColor(&u8g2, value_selected ? 1u : 0u);
+    ui_menu_text(250u, (uint16_t)(y + 20u), value, 16u);
+    u8g2_SetDrawColor(&u8g2, 0);
+}
+
+static void ui_menu_header(uint8_t menu, uint8_t fullscreen, const char *subtitle)
+{
+    uint16_t left = fullscreen ? 1u : 113u;
+    uint16_t width = fullscreen ? 382u : 266u;
+    if (menu >= MAIN_LEN) menu = 0u;
+    u8g2_SetDrawColor(&u8g2, 1);
+    u8g2_DrawBox(&u8g2, left, 1u, width, 166u);
+    u8g2_SetDrawColor(&u8g2, 0);
+    u8g2_DrawRFrame(&u8g2, (uint16_t)(left + 1u), fullscreen ? 1u : 5u,
+                    (uint16_t)(width - 2u), fullscreen ? 166u : 159u, 4u);
+    u8g2_DrawXBMP(&u8g2, (uint16_t)(left + 5u), fullscreen ? 5u : 10u,
+                  29u, 27u, ui_menu_title_icons[menu]);
+    ui_menu_text((uint16_t)(left + 43u), 31u, Menu_List[menu].name, 18u);
+    u8g2_DrawHLine(&u8g2, (uint16_t)(left + 6u), fullscreen ? 34u : 42u,
+                   (uint16_t)(width - 12u));
+    if (fullscreen)
+    {
+        ui_menu_text(200u, 28u, subtitle, 16u);
+        ui_menu_control(298u, 9u, 75u, 24u, "返回", 1u, 1u);
+    }
+    u8g2_SetFont(&u8g2, UI_FONT_CN);
 }
 
 void UI_Menu_Display(void)
 {
-    /* ★ 契约 §6.1：UI_Select 直接来自串口字节（Usart3_task.c 的
-     *   UI_Select = rank2，以及本文件 UI_Control() 的 UI_Select = rank2_addr），
-     *   旧代码只在第 4 步给 Main_List 加了 <8 保护，而第 5/6 步的
-     *   Menu_List[UI_Select] 完全没有边界检查 —— 越界读函数指针会跳到任意地址。
-     *   这里统一钳制到合法范围（0..MAIN_LEN-1）。
-     * ⚠️ MAIN_LEN 取自 Main_List[]，却同时用于索引 Menu_List[]，**两个列表长度
-     *   必须始终一致（当前都是 8 项）**；将来只给其中一个增删项就会越界。 */
+    uint8_t i;
+    uint8_t bitmap_mode = u8g2.bitmap_transparency;
+    uint8_t font_mode = u8g2.font_decode.is_transparent;
+    uint8_t draw_color = u8g2.draw_color;
     if (UI_Select >= MAIN_LEN) UI_Select = 0;
+    u8g2_SetBitmapMode(&u8g2, 1);
+    u8g2_SetFontMode(&u8g2, 1);
 
-    /* ★★ 契约_息屏省电数据链与页面体系 §4.2 / §4.4（2026-09-22）：
-     *   三个"参数过多"页面 —— 设备信号(re=3) / 设备电压(re=4) / 通道绑定名称(re=5) ——
-     *   按需求改成**整屏显示**（左列通道 1~10、右列 11~20，一屏 20 条）。
-     *   ⚠️ 必须在**画左侧菜单之前**分流：否则左列内容（尤其名称页的长名称）
-     *      会压在左侧菜单文字上（旧实现即如此）。渲染完直接 return，
-     *      整屏只有该页内容 + 标题带 + 「返回」。 */
+    /* Preserve the three existing full-screen, twenty-channel branches. */
     if (Data_list1.menu_rank == 3)
     {
         uint8_t re_top = Data_list1.UI_main.re_flag;
         if (re_top == 3 || re_top == 4)
         {
-            UI_Select = Data_list1.rank2_addr;      /* 与常规路径一致，供页面内引用 */
+            UI_Select = Data_list1.rank2_addr;
             install_Control();
-            return;
+            goto restore_style;
         }
         if (re_top == 5)
         {
             UI_Select = Data_list1.rank2_addr;
             summary_Control();
-            return;
+            goto restore_style;
         }
     }
 
-    // 1. 绘制左侧菜单列表（所有项）
-    /* ★ 中文一律 UI_FONT_CN：菜单项含"设备绑定/信息汇总"，lunar 字库缺
-     *   绑/息/汇/总 等字形，用 lunar 会显示空白（契约 §7）。 */
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
-    for (uint8_t i = 0; i < 8; i++)
+    u8g2_SetDrawColor(&u8g2, 1);
+    u8g2_DrawFrame(&u8g2, 1u, 1u, 382u, 166u);
+    u8g2_DrawRFrame(&u8g2, 6u, 5u, 103u, 159u, 4u);
+    u8g2_DrawFrame(&u8g2, 8u, 7u, 99u, 155u);
+    for (i = 0u; i < MAIN_LEN; i++)
     {
-        u8g2_DrawUTF8(&u8g2, Main_List[i].posx, Main_List[i].posy, Main_List[i].name);
+        uint16_t top = (uint16_t)(9u + 19u * i);
+        uint8_t selected = (uint8_t)(Data_list1.menu_rank == 2u && UI_Select == i);
+        u8g2_SetDrawColor(&u8g2, 1);
+        if (selected) u8g2_DrawBox(&u8g2, 10u, top, 95u, 19u);
+        else if (UI_Select == i) u8g2_DrawVLine(&u8g2, 10u, top, 19u);
+        u8g2_SetDrawColor(&u8g2, selected ? 0u : 1u);
+        u8g2_DrawXBMP(&u8g2, 14u, (uint16_t)(top + 3u), 13u, 13u, ui_menu_nav_icons[i]);
+        ui_menu_text(32u, (uint16_t)(top + 15u), Main_List[i].name, 16u);
     }
-
-    // 2. 绘制左侧外框和内框
-    u8g2_DrawRFrame(&u8g2, 4, 4, 94, 160, 6);   // 外框
-    u8g2_DrawRFrame(&u8g2, 6, 6, 90, 156, 4);   // 内框
-
-    // 3. 右侧区域外框
-    u8g2_DrawRFrame(&u8g2, 102, 4, 278, 160, 6);
-
-    // 4. 在当前选中的菜单项上画矩形框（高亮）
-    if(Data_list1.menu_rank==2)
-    {
-        if (UI_Select < MAIN_LEN)   // 确保索引有效
-        {
-            u8g2_SetFont(&u8g2, UI_FONT_CN);
-            // 获取菜单名称的像素宽度
-            uint8_t name_width = u8g2_GetUTF8Width(&u8g2, Main_List[UI_Select].name);
-            // 定义框的边距（与文字保持间距）
-            uint8_t padding = 2;
-            // 计算框的坐标（根据字体基线调整）
-            // wqy14 墨迹 = [基线-12, 基线+1] ⇒ 框取 [基线-14, 基线+4]
-            uint8_t x = Main_List[UI_Select].posx - padding - 2;
-            uint8_t y = Main_List[UI_Select].posy - 14;   // 根据实际字体调整
-            uint8_t w = name_width + padding * 2 + 4;
-            uint8_t h = 19;  // 框高度略大于 14px 字高
-            // 画框（仅边框，不填充）
-            u8g2_DrawFrame(&u8g2, x, y, w, h);
-        }
-    }
-
-    // 5. 右侧内容区域：绘制标题（使用 Menu_List 中的名称）
-    /* ★ 标题字体改用 UI_FONT_CN（原 u8g2_font24_lunar 缺字）；
-     *   wqy14 墨迹 = [基线-12, 基线+1]，标题带为 y=6..34，
-     *   故基线取 28（墨迹 16..29），分割线仍在 y=34。 */
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
-    u8g2_DrawUTF8(&u8g2, Menu_List[UI_Select].posx, 28, Menu_List[UI_Select].name);
-    u8g2_DrawLine(&u8g2, 104, 34, 210, 34);   // 标题下分割线
-
-    // 6. 调用当前选中菜单对应的回调函数（显示具体内容）
+    ui_menu_header(UI_Select, 0u, "");
     Menu_List[UI_Select].function();
+
+restore_style:
+    u8g2_SetBitmapMode(&u8g2, bitmap_mode);
+    u8g2_SetFontMode(&u8g2, font_mode);
+    u8g2_SetDrawColor(&u8g2, draw_color);
+    u8g2_SetFont(&u8g2, UI_FONT_CN);
 }
 
 /* ==================================================================
@@ -655,105 +917,73 @@ void UI_Menu_Display(void)
  *   with_buttons = 0 → 只有"返回"（固定高亮） */
 static void binding_device_list_page(uint8_t rank3, uint8_t with_buttons)
 {
-    char    line[48];
+    char line[48];
     uint8_t i, n, first, pages;
-
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
-
     sprintf(line, "总设备数:%d", g_binding_count);
-    ui_draw(110, 48, line);
-
+    u8g2_SetFont(&u8g2, UI_FONT_CN);
+    ui_draw(122u, 56u, line);
     n = g_binding_count;
     if (n > MAX_BINDING_NUM) n = MAX_BINDING_NUM;
     pages = (uint8_t)((n + 2) / 3);
     first = pages ? (uint8_t)(((g_name_chk_sec / 4) % pages) * 3) : 0;
+    u8g2_SetFont(&u8g2, UI_FONT_CN);
     for (i = first; i < n && i < first + 3; i++)
     {
-        uint8_t y = (uint8_t)(62 + 28 * (i - first));
-
+        uint16_t y = (uint16_t)(71u + 26u * (i - first));
         sprintf(line, "%02d", i + 1);
-        ui_draw(110, y, line);
-        ui_draw_name(130, y, g_binding_list[i].name, 244);
-
+        ui_draw(122u, y, line);
+        ui_draw_name(144u, y, g_binding_list[i].name, 224u);
         sprintf(line, "%02X%02X%02X%02X%02X%02X",
                 g_binding_list[i].mac[0], g_binding_list[i].mac[1], g_binding_list[i].mac[2],
                 g_binding_list[i].mac[3], g_binding_list[i].mac[4], g_binding_list[i].mac[5]);
-        ui_draw(130, (uint16_t)(y + 14), line);
+        ui_draw(144u, (uint16_t)(y + 13u), line);
     }
-
     if (with_buttons)
     {
-        ui_draw(110, 152, "解绑");
-        ui_hl_box(110, 152, 28, (uint8_t)(rank3 == 0));
-        ui_draw(250, 152, "返回");
-        ui_hl_box(250, 152, 28, (uint8_t)(rank3 != 0));
+        ui_menu_control(117u, 140u, 128u, 22u, "解绑",
+                         (uint8_t)(Data_list1.menu_rank == 3u && rank3 == 0u), 1u);
+        ui_menu_control(247u, 140u, 128u, 22u, "返回",
+                         (uint8_t)(Data_list1.menu_rank == 3u && rank3 != 0u), 1u);
     }
-    else
-    {
-        ui_draw(110, 152, "返回");
-        ui_hl_box(110, 152, 28, 1);
-    }
+    else ui_menu_control(117u, 140u, 128u, 22u, "返回",
+                          (uint8_t)(Data_list1.menu_rank == 3u), 1u);
 }
 
 /* 绑定设备子页（re_flag==2）：显示最近扫描到的蓝牙名称 + 保存目前设备/返回
  *   "保存目前设备" = STM32 发 0x05（CH584M 在 case 0x05 里落盘绑定表）。 */
 static void binding_scan_page(uint8_t rank3)
 {
-    uint8_t     i, n;
+    uint8_t i, n;
     const char *nm;
-
     u8g2_SetFont(&u8g2, UI_FONT_CN);
-
-    ui_draw(110, 48, "扫描到的蓝牙名称");
-
+    ui_draw(122u, 56u, "扫描到的蓝牙名称");
     n = scan_name_cache_count();
-    if (n == 0) ui_draw(110, 62, "--");     /* 还没扫到任何设备 */
-    for (i = 0; i < n && i < 6; i++)
+    if (n == 0u) ui_draw(122u, 71u, "--");
+    for (i = 0u; i < n && i < 6u; i++)
     {
         nm = scan_name_cache_name(i);
         if (nm != NULL)
-            ui_draw_name(110, (uint16_t)(62 + 14 * i), (const uint8_t *)nm, 264);
-        else
-            ui_draw(110, (uint16_t)(62 + 14 * i), "--");
+            ui_draw_name(122u, (uint16_t)(71u + 13u * i), (const uint8_t *)nm, 246u);
+        else ui_draw(122u, (uint16_t)(71u + 13u * i), "--");
     }
-
-    ui_draw(110, 152, "保存目前设备");
-    ui_hl_box(110, 152, 84, (uint8_t)(rank3 == 0));
-    ui_draw(250, 152, "返回");
-    ui_hl_box(250, 152, 28, (uint8_t)(rank3 != 0));
+    ui_menu_control(117u, 140u, 128u, 22u, "保存目前设备",
+                     (uint8_t)(Data_list1.menu_rank == 3u && rank3 == 0u), 1u);
+    ui_menu_control(247u, 140u, 128u, 22u, "返回",
+                     (uint8_t)(Data_list1.menu_rank == 3u && rank3 != 0u), 1u);
 }
 
 void binding_Control(void)
 {
-    uint8_t re    = Data_list1.UI_main.re_flag;
+    uint8_t re = Data_list1.UI_main.re_flag;
     uint8_t rank3 = Data_list1.rank3_addr;
-    char    buf[48];
-
-    /* ---- 二级子页（由 re_flag 选择，见本段顶部注释） ----
-     * ★ 修正（复核清单原文后）：清单只要求「1.已绑定设备：个数」在**菜单里就地显示个数**；
-     *   明确"进入对应的子页面"的只有「2.一键解绑」与「3.绑定设备」。
-     *   原先这里还有 `if (rank3 == 0) → 明细子页`，而进入本页时 rank3_addr 默认就是 0，
-     *   于是 4 项菜单直接看不到（STM32 侧也从未为该项设过 Sub2，属单方面多画一页）。
-     *   故删除该分支：本页恒画 4 项列表；设备明细（名称 + 12 位 MAC）在
-     *   re_flag==1 的「一键解绑」子页里展示，与清单一致。 */
-    if (re == 2) { binding_scan_page(rank3);             return; }   /* 绑定设备 */
-    if (re == 1) { binding_device_list_page(rank3, 1);   return; }   /* 一键解绑 */
-
-    /* ---- 主列表（4 项） ---- */
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
-
+    char buf[48];
+    if (re == 2) { binding_scan_page(rank3); return; }
+    if (re == 1) { binding_device_list_page(rank3, 1); return; }
     sprintf(buf, "已绑定设备:%d", g_binding_count);
-    ui_draw(110, 52, buf);                  /* 清单「1.已绑定设备：个数」= 菜单里就地显示个数 */
-    ui_hl_box(110, 52, 83, (uint8_t)(rank3 == 0));
-
-    ui_draw(110, 70, "一键解绑");
-    ui_hl_box(110, 70, 56, (uint8_t)(rank3 == 1));
-
-    ui_draw(110, 88, "绑定设备");
-    ui_hl_box(110, 88, 56, (uint8_t)(rank3 == 2));
-
-    ui_draw(110, 106, "返回");
-    ui_hl_box(110, 106, 28, (uint8_t)(rank3 == 3));
+    ui_menu_control(117u, 50u, 258u, 25u, buf, ui_menu_selected(0u), 0u);
+    ui_menu_control(117u, 79u, 258u, 25u, "一键解绑", ui_menu_selected(1u), 0u);
+    ui_menu_control(117u, 108u, 258u, 25u, "绑定设备", ui_menu_selected(2u), 0u);
+    ui_menu_button(1u, "返回", ui_menu_selected(3u));
 }
 
 /* ==================================================================
@@ -820,13 +1050,7 @@ static void summary_name_page(uint16_t page)
 
     (void)page;                              /* 契约 §4.2：不再分页（入参保留以便审计页面码） */
 
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
-
-    ui_draw(PARAM_LABEL_X, PARAM_TITLE_BASE, "名称");        /* 不再有 "1-10/11-20" 页码 */
-
-    /* 「返回」（契约 §4.4）：固定高亮 = 本页唯一可选项 */
-    ui_draw(PARAM_BACK_X, PARAM_TITLE_BASE, "返回");
-    ui_hl_box(PARAM_BACK_X, PARAM_TITLE_BASE, PARAM_BACK_W, 1);
+    ui_menu_header(UI_Select, 1u, "名称");
 
     /* 双列分隔竖线：左列 1..10 / 右列 11..20 */
     u8g2_DrawVLine(&u8g2, MAIN_COL_SPLIT_X, PARAM_VLINE_TOP, PARAM_VLINE_LEN);
@@ -858,40 +1082,25 @@ static void summary_name_page(uint16_t page)
 /* 恢复出厂确认子页（re_flag==6）：两项，高亮由 rank3 决定（0=确认，其余=返回） */
 static void summary_factory_page(uint8_t rank3)
 {
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
-
-    ui_draw(110, 64, "确认恢复出厂设置?");
-    ui_draw(110, 120, "确认");
-    ui_hl_box(110, 120, 28, (uint8_t)(rank3 == 0));
-    ui_draw(210, 120, "返回");
-    ui_hl_box(210, 120, 28, (uint8_t)(rank3 != 0));
+    ui_menu_text(126u, 83u, "确认恢复出厂设置?", 16u);
+    ui_menu_button(0u, "确认", (uint8_t)(Data_list1.menu_rank == 3u && rank3 == 0u));
+    ui_menu_button(1u, "返回", (uint8_t)(Data_list1.menu_rank == 3u && rank3 != 0u));
 }
 
 void summary_Control(void)
 {
-    uint8_t re    = Data_list1.UI_main.re_flag;
+    uint8_t re = Data_list1.UI_main.re_flag;
     uint8_t rank3 = Data_list1.rank3_addr;
-    char    buf[48];
-
-    if (re == 5) { summary_name_page(Data_list1.UI_main.chu_num2); return; }  /* 通道绑定名称 */
-    if (re == 6) { summary_factory_page(rank3);                     return; }  /* 恢复出厂确认 */
-
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
-
-    ui_draw(110, 52, "已绑定的设备名称");
-    ui_hl_box(110, 52, 112, (uint8_t)(rank3 == 0));
-
+    char buf[48];
+    if (re == 5) { summary_name_page(Data_list1.UI_main.chu_num2); return; }
+    if (re == 6) { summary_factory_page(rank3); return; }
+    ui_menu_control(117u, 48u, 258u, 20u, "已绑定的设备名称", ui_menu_selected(0u), 0u);
     sprintf(buf, "蓝牙名称错误警报:%d", g_name_err_count);
-    ui_hl_box(110, 70, ui_draw(110, 70, buf), (uint8_t)(rank3 == 1));
-
+    ui_menu_control(117u, 70u, 258u, 20u, buf, ui_menu_selected(1u), 0u);
     sprintf(buf, "蓝牙电压异常警报:%d", g_volt_err_count);
-    ui_hl_box(110, 88, ui_draw(110, 88, buf), (uint8_t)(rank3 == 2));
-
-    ui_draw(110, 106, "恢复出厂");
-    ui_hl_box(110, 106, 56, (uint8_t)(rank3 == 3));
-
-    ui_draw(110, 124, "返回");
-    ui_hl_box(110, 124, 28, (uint8_t)(rank3 == 4));
+    ui_menu_control(117u, 92u, 258u, 20u, buf, ui_menu_selected(2u), 0u);
+    ui_menu_control(117u, 114u, 258u, 20u, "恢复出厂", ui_menu_selected(3u), 0u);
+    ui_menu_button(1u, "返回", ui_menu_selected(4u));
 }
 
 typedef struct {
@@ -904,68 +1113,16 @@ typedef struct {
     uint8_t  kuang_high;          //方框离文字的高
 
 } OptionItem;
-void addr_Control()
+void addr_Control(void)
 {
-    uint8_t menu_rank=0;
-    uint8_t rank3_addr=0;
-
-    OptionItem laber[10]=
-    {
-          {120, 80, 14,0,4,4},
-          {250, 80, 14,0,4,4},
-          {120, 120, 14,0,4,4},
-          {250, 120, 14,0,4,4},
-          {120, 156, 14,0,4,4},
-          {250, 156, 14,0,4,4}
-    };
-
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
-    u8g2_DrawUTF8(&u8g2, 120, 80, "分区:");          // 框y=72,高26,垂直居中约90
-    laber[0].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)"分区:");;
-
-    char tmp[20];
-    sprintf(tmp, "%d", Data_list1.Menu_rank1.set_sub_num);
-    u8g2_DrawUTF8(&u8g2, 250, 80, tmp);
-    laber[1].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)tmp);
-
-    u8g2_DrawUTF8(&u8g2, 120, 120, "地址:");         // 下框y=104,高26,垂直居中约122
-    laber[2].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)"地址:");
-
-    char tmp1[20];
-    sprintf(tmp1, "%d", Data_list1.Menu_rank1.set_host_num);
-    u8g2_DrawUTF8(&u8g2, 250, 120, tmp1);
-    laber[3].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)tmp1);;
-
-    u8g2_DrawUTF8(&u8g2, 120, 156, "保存并重启");         // 下框y=104,高26,垂直居中约122
-    laber[4].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)"保存并重启");
-
-    u8g2_DrawUTF8(&u8g2, 250, 156, "不保存返回");          // 框y=72,高26,垂直居中约90
-    laber[5].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)"不保存返回");
-
-
-    menu_rank=Data_list1.menu_rank;
-    rank3_addr=Data_list1.rank3_addr;
-
-    if (menu_rank == 3)   // 确保索引有效
-    {
-        if(rank3_addr<6)
-        {
-           // u8g2_SetFont(&u8g2, u8g2_font16_lunar);
-            // 获取菜单名称的像素宽度
-            uint16_t name_width =laber[rank3_addr].label_wight;
-            // 定义框的边距（与文字保持间距）
-            uint16_t padding = laber[rank3_addr].kuang_wight;
-            // 计算框的坐标（根据字体基线调整）
-            // u8g2 的 y 坐标是基线，假设字体高度约为 16，ascent 约 14，descent 约 2
-            // 框的左上角 y = posy - 14 - 2（适当微调）
-            uint16_t x = laber[rank3_addr].posx - padding;
-            uint16_t y = laber[rank3_addr].posy -laber[rank3_addr].font_size ;  // 根据实际字体调整
-            uint16_t w = name_width + padding * 2;
-            uint16_t h =laber[rank3_addr].font_size+ laber[rank3_addr].kuang_high*2;  // 框高度略大于字体高度
-            // 画框（仅边框，不填充）
-            u8g2_DrawFrame(&u8g2, x, y, w, h);
-        }
-    }
+    char value[20];
+    sprintf(value, "%d", Data_list1.Menu_rank1.set_sub_num);
+    ui_menu_field(62u, "分站号:", value, ui_menu_selected(0u), ui_menu_selected(1u));
+    sprintf(value, "%d", Data_list1.Menu_rank1.set_host_num);
+    ui_menu_field(99u, "本机地址:", value, ui_menu_selected(2u), ui_menu_selected(3u));
+    u8g2_DrawXBMP(&u8g2, 325u, 73u, 47u, 52u, ui_menu_detail_address);
+    ui_menu_button(0u, "保存并重启", ui_menu_selected(4u));
+    ui_menu_button(1u, "不保存返回", ui_menu_selected(5u));
 }
 
 void addr_Control1(void)
@@ -1035,130 +1192,51 @@ void addr_Control1(void)
         u8g2_DrawFrame(&u8g2, x, y, w, h);
     }
 }
-void networking_Control1()
+void networking_Control1(void)
 {
-
-    uint8_t menu_rank=0;
-     uint8_t rank3_addr=0;
-      menu_rank = Data_list1.menu_rank;
-      rank3_addr = Data_list1.rank3_addr;
-
-     OptionItem laber[10]=
-     {
-           {120, 112, 14,0,4,4},   /* rank3_addr = 0  "开始组网" */
-           {250, 112, 14,0,4,4},   /* rank3_addr = 1  "返回"     */
-           {120, 150, 14,0,4,4},   /* rank3_addr = 2  解绑全部（屏上显示"重置组网"） */
-           {250, 150, 14,0,4,4},   /* rank3_addr = 3  保存绑定（屏上显示"保存组网"） */
-     };
-
-      /* ★ 改用 UI_FONT_CN（文泉驿 GB2312 半区，全字库）——原 u8g2_font24_lunar
-       * 只有 125 个汉字，功能清单的菜单文案会缺字显示空白。详见 yuying_TFT.h。 */
-      u8g2_SetFont(&u8g2, UI_FONT_CN);
-
-      u8g2_DrawUTF8(&u8g2, 120, 60, "组网");          // 框y=72,高26,垂直居中约90
-
-      /* ★ 组网测试页子选项扩展到 4 项（与协议契约 §5 / STM32 侧顺序严格一致）：
-       *   rank3_addr 0=开始组网  1=返回  2=解绑全部  3=保存绑定
-       *   CH584M 侧只负责"显示 + 高亮框"，点击后由 STM32 发 0x04/0x05 请求，
-       *   CH584M 在 parse_received_frame() 的 case 0x04/0x05 里执行。
-       *   布局 2×2（面板约 x=102..380 / y=4..164，24px 字体不重叠）：
-       *     第 1 行 y=112：开始组网(x=120) / 返回(x=250)
-       *     第 2 行 y=150：重置组网(x=120) / 保存组网(x=250)
-       *   rank3_addr 已不再兼任"扫描模式"（P1/P2 后由 g_scan_mode 负责），
-       *   因此这里扩项不会影响扫描/绑定行为。
-       *
-       *   ⚠️ 用字说明（实机字形已核验）：
-       *   本工程可用的三个中文点阵字库（u8g2_font16_lunar / u8g2_font24_lunar /
-       *   u8g2_font32_lunar）都只有 **同一套 207 个字形**，其中**没有**
-       *   "解""绑""全""部"四个字（核验脚本：D:\ai_work\_tools\u8g2_font_glyph_check.js，
-       *   直接按 u8g2 新字体格式解析 unicode 段）。
-       *   若照抄契约里的"解绑全部 / 保存绑定"，这两项会**显示为空**（u8g2 跳过无字形字符）。
-       *   因此改用**同义且字形齐备**的措辞，rank3_addr 顺序与语义完全不变：
-       *     rank3_addr = 2 → "重置组网"（清空全部绑定 + 清 Flash，即"解绑全部"）
-       *     rank3_addr = 3 → "保存组网"（RAM 绑定表落盘 Data-Flash，即"保存绑定"）
-       *   若必须显示"解绑/绑定"字样，需要另行用 bdfconv 生成含这些字形的字库子集。 */
-      u8g2_DrawUTF8(&u8g2, 120, 112, "开始组网");
-      laber[0].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)"开始组网");
-      u8g2_DrawUTF8(&u8g2, 250, 112, "返回");
-      laber[1].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)"返回");
-      u8g2_DrawUTF8(&u8g2, 120, 150, "重置组网");
-      laber[2].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)"重置组网");
-      u8g2_DrawUTF8(&u8g2, 250, 150, "保存组网");
-      laber[3].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)"保存组网");
-
-
-      if (menu_rank == 3)   // 确保索引有效
-          {
-              if(rank3_addr<4)   /* ★ 4 项：0..3（原为 <2） */
-              {
-                 // u8g2_SetFont(&u8g2, u8g2_font16_lunar);
-                  // 获取菜单名称的像素宽度
-                  uint16_t name_width =laber[rank3_addr].label_wight;
-                                    // 定义框的边距（与文字保持间距）
-                                    uint16_t padding = laber[rank3_addr].kuang_wight;
-                                    // 计算框的坐标（根据字体基线调整）
-                                    // u8g2 的 y 坐标是基线，假设字体高度约为 16，ascent 约 14，descent 约 2
-                                    // 框的左上角 y = posy - 14 - 2（适当微调）
-                                    uint16_t x = laber[rank3_addr].posx - padding;
-                                    uint16_t y = laber[rank3_addr].posy -laber[rank3_addr].font_size ;  // 根据实际字体调整
-                                    uint16_t w = name_width + padding * 2;
-                                    uint16_t h =laber[rank3_addr].font_size+ laber[rank3_addr].kuang_high*2;  // 框高度略大于字体高度
-                                    // 画框（仅边框，不填充）
-                                    u8g2_DrawFrame(&u8g2, x, y, w, h);
-              }
-          }
+    /* Same four STM32-controlled actions, in their original index order. */
+    ui_menu_text(123u, 63u, "组网", 16u);
+    u8g2_DrawFrame(&u8g2, 130u, 74u, 25u, 18u);
+    u8g2_DrawFrame(&u8g2, 133u, 77u, 19u, 12u);
+    u8g2_DrawVLine(&u8g2, 142u, 92u, 5u);
+    u8g2_DrawHLine(&u8g2, 136u, 97u, 13u);
+    u8g2_DrawHLine(&u8g2, 161u, 84u, 63u);
+    u8g2_DrawXBMP(&u8g2, 226u, 71u, 29u, 27u, ui_menu_title_icons[1]);
+    u8g2_DrawHLine(&u8g2, 258u, 84u, 63u);
+    u8g2_DrawFrame(&u8g2, 327u, 73u, 21u, 25u);
+    ui_menu_control(117u, 107u, 128u, 25u, "开始组网", ui_menu_selected(0u), 1u);
+    ui_menu_control(247u, 107u, 128u, 25u, "返回", ui_menu_selected(1u), 1u);
+    ui_menu_button(0u, "重置组网", ui_menu_selected(2u));
+    ui_menu_button(1u, "保存组网", ui_menu_selected(3u));
 }
 
-void networking_Control2()
+void networking_Control2(void)
 {
-    uint8_t menu_rank=0;
-         uint8_t rank3_addr=0;
-          menu_rank = Data_list1.menu_rank;
-          rank3_addr = Data_list1.rank3_addr;
-      u8g2_SetFont(&u8g2, UI_FONT_CN);
-
-      u8g2_DrawUTF8(&u8g2, 110, 60, "次数序号:");          // 框y=72,高26,垂直居中约90
-      char tmp1[20];
-      sprintf(tmp1, "%d", Data_list1.Menu_rank2.xuhao_num);
-      u8g2_DrawUTF8(&u8g2, 250, 60, tmp1);
-
-      u8g2_DrawUTF8(&u8g2, 110, 84, "本机地址:");         // 下框y=104,高26,垂直居中约122
-      if(Data_list1.Menu_rank2.now_host_addr==121)
-      {
-          u8g2_DrawUTF8(&u8g2, 250, 84, "中继");
-      }
-      else{
-          char tmp2[20];
-          sprintf(tmp2, "%d", Data_list1.Menu_rank2.now_host_addr);
-          u8g2_DrawUTF8(&u8g2, 250, 84, tmp2);
-      }
-
-      u8g2_DrawUTF8(&u8g2, 110, 110, "测试地址:");
-      if(Data_list1.Menu_rank2.text_host_addr==121)
-      {
-          u8g2_DrawUTF8(&u8g2, 250, 110, "中继");
-      }
-      else if(Data_list1.Menu_rank2.text_host_addr==122)
-      {
-          u8g2_DrawUTF8(&u8g2, 250, 110, "分站");
-      }
-      else
-      {
-          char tmp3[20];
-          sprintf(tmp3, "%d", Data_list1.Menu_rank2.text_host_addr);
-          u8g2_DrawUTF8(&u8g2, 250, 110, tmp3);
-      }
-
-      u8g2_DrawUTF8(&u8g2, 110, 134, "测试次数:");         // 下框y=104,高26,垂直居中约122
-      char tmp4[20];
-      sprintf(tmp4, "%d", Data_list1.Menu_rank2.text_cnt);
-      u8g2_DrawUTF8(&u8g2, 250, 134, tmp4);
-
-      u8g2_DrawUTF8(&u8g2, 110, 158, "成功比率:");
-      char tmp5[20];
-      sprintf(tmp5, "%d %%", Data_list1.Menu_rank2.bl_numl);
-      u8g2_DrawUTF8(&u8g2, 250, 158, tmp5);
-
+    char value[20];
+    const char *labels[] = {"次数序号:", "本机地址:", "测试地址:", "测试次数:", "成功比率:"};
+    uint8_t i;
+    for (i = 0u; i < 5u; i++)
+    {
+        uint16_t y = (uint16_t)(47u + 23u * i);
+        if (i == 0u) sprintf(value, "%d", Data_list1.Menu_rank2.xuhao_num);
+        else if (i == 1u)
+        {
+            if (Data_list1.Menu_rank2.now_host_addr == 121u) sprintf(value, "中继");
+            else sprintf(value, "%d", Data_list1.Menu_rank2.now_host_addr);
+        }
+        else if (i == 2u)
+        {
+            if (Data_list1.Menu_rank2.text_host_addr == 121u) sprintf(value, "中继");
+            else if (Data_list1.Menu_rank2.text_host_addr == 122u) sprintf(value, "分站");
+            else sprintf(value, "%d", Data_list1.Menu_rank2.text_host_addr);
+        }
+        else if (i == 3u) sprintf(value, "%d", Data_list1.Menu_rank2.text_cnt);
+        else sprintf(value, "%d %%", Data_list1.Menu_rank2.bl_numl);
+        u8g2_SetDrawColor(&u8g2, 0);
+        u8g2_DrawFrame(&u8g2, 117u, y, 258u, 22u);
+        ui_menu_text(122u, (uint16_t)(y + 17u), labels[i], 16u);
+        ui_menu_text(250u, (uint16_t)(y + 17u), value, 16u);
+    }
 }
 void networking_Control(void)
 {
@@ -1366,14 +1444,7 @@ static void install_ch_page(uint8_t kind, uint16_t page)
 
     (void)page;                              /* 契约 §4.2：不再分页（入参保留以便审计页面码） */
 
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
-
-    /* 子页标识（不再有 "1-10/11-20" 页码） */
-    ui_draw(PARAM_LABEL_X, PARAM_TITLE_BASE, (kind == 3) ? "信号" : "电压");
-
-    /* 「返回」（契约 §4.4）：固定高亮 = 本页唯一可选项 */
-    ui_draw(PARAM_BACK_X, PARAM_TITLE_BASE, "返回");
-    ui_hl_box(PARAM_BACK_X, PARAM_TITLE_BASE, PARAM_BACK_W, 1);
+    ui_menu_header(UI_Select, 1u, (kind == 3) ? "信号" : "电压");
 
     /* 双列分隔竖线：左列 1..10 / 右列 11..20 */
     u8g2_DrawVLine(&u8g2, MAIN_COL_SPLIT_X, PARAM_VLINE_TOP, PARAM_VLINE_LEN);
@@ -1417,304 +1488,54 @@ static void install_ch_page(uint8_t kind, uint16_t page)
     }
 }
 
-void install_Control()
+void install_Control(void)
 {
-    uint8_t re    = Data_list1.UI_main.re_flag;
-    uint8_t rank3 = Data_list1.rank3_addr;
-
-    if (re == 3) { install_ch_page(3, Data_list1.UI_main.chu_num2); return; }   /* 20 通道 RSSI */
-    if (re == 4) { install_ch_page(4, Data_list1.UI_main.chu_num2); return; }   /* 20 通道电压 */
-
-    /* ---- 主列表（3 项） ---- */
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
-
-    ui_draw(110, 60, "设备信号");
-    ui_hl_box(110, 60, 56, (uint8_t)(rank3 == 0));
-
-    ui_draw(110, 88, "设备电压");
-    ui_hl_box(110, 88, 56, (uint8_t)(rank3 == 1));
-
-    ui_draw(110, 116, "返回");
-    ui_hl_box(110, 116, 28, (uint8_t)(rank3 == 2));
+    uint8_t re = Data_list1.UI_main.re_flag;
+    if (re == 3) { install_ch_page(3, Data_list1.UI_main.chu_num2); return; }
+    if (re == 4) { install_ch_page(4, Data_list1.UI_main.chu_num2); return; }
+    ui_menu_control(117u, 62u, 258u, 27u, "设备信号", ui_menu_selected(0u), 0u);
+    ui_menu_control(117u, 99u, 258u, 27u, "设备电压", ui_menu_selected(1u), 0u);
+    ui_menu_button(1u, "返回", ui_menu_selected(2u));
 }
-void uploading_Control()
+void uploading_Control(void)
 {
-
-    uint8_t menu_rank=0;
-         uint8_t rank3_addr=0;
-          menu_rank = Data_list1.menu_rank;
-          rank3_addr = Data_list1.rank3_addr;
-    OptionItem laber[10]=
-     {
-           {300, 60, 14,0,4,4},
-           {300, 86, 14,0,4,4},
-           {300, 112, 14,0,4,4},
-
-           {120, 156, 14,0,4,4},
-           {250, 156, 14,0,4,4},
-//           {120, 156, 24,0,4,4},
-//           {250, 156, 24,0,4,4}
-     };
-        u8g2_SetFont(&u8g2, UI_FONT_CN);
-
-
-        u8g2_DrawUTF8(&u8g2, 300, 30, "更改为");          // 框y=72,高26,垂直居中约90
-
-        u8g2_DrawUTF8(&u8g2, 110, 60, "上传1:");         // 下框y=104,高26,垂直居中约122
-
-        if(Data_list1.Menu_rank5.old_send_addr[0]==0)
-        {
-            u8g2_DrawUTF8(&u8g2, 200, 60, "中继");
-        }
-        else if(Data_list1.Menu_rank5.old_send_addr[0]==121)
-        {
-            u8g2_DrawUTF8(&u8g2, 200, 60, "无");
-        }
-        else if(Data_list1.Menu_rank5.old_send_addr[0]==122)
-        {
-            u8g2_DrawUTF8(&u8g2, 200, 60, "分站");
-        }
-        else
-        {
-            char tmp1[20];
-            sprintf(tmp1, "%d号", Data_list1.Menu_rank5.old_send_addr[0]);
-            u8g2_DrawUTF8(&u8g2, 200, 60, tmp1);
-                //  laber[1].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)tmp1);
-
-        }
-
-        u8g2_DrawUTF8(&u8g2, 110, 86, "上传2:");         // 下框y=104,高26,垂直居中约122
-
-        if(Data_list1.Menu_rank5.old_send_addr[1]==0)
-         {
-             u8g2_DrawUTF8(&u8g2, 200, 86, "中继");
-         }
-        else if(Data_list1.Menu_rank5.old_send_addr[1]==121)
-       {
-           u8g2_DrawUTF8(&u8g2, 200, 86, "无");
-       }
-         else if(Data_list1.Menu_rank5.old_send_addr[1]==122)
-         {
-             u8g2_DrawUTF8(&u8g2, 200, 86, "分站");
-         }
-         else{
-             char tmp2[20];
-             sprintf(tmp2, "%d号", Data_list1.Menu_rank5.old_send_addr[1]);
-             u8g2_DrawUTF8(&u8g2, 200, 86, tmp2);
-
-         }
-
-        u8g2_DrawUTF8(&u8g2, 110, 112, "上传3:");         // 下框y=104,高26,垂直居中约122
-         if(Data_list1.Menu_rank5.old_send_addr[2]==0)
-         {
-             u8g2_DrawUTF8(&u8g2, 200, 112, "中继");
-         }
-         else if(Data_list1.Menu_rank5.old_send_addr[2]==121)
-         {
-              u8g2_DrawUTF8(&u8g2, 200, 112, "无");
-         }
-         else if(Data_list1.Menu_rank5.old_send_addr[2]==122)
-         {
-             u8g2_DrawUTF8(&u8g2, 200, 112, "分站");
-         }
-         else
-         {
-             char tmp3[20];
-             sprintf(tmp3, "%d号", Data_list1.Menu_rank5.old_send_addr[2]);
-             u8g2_DrawUTF8(&u8g2, 200, 112, tmp3);
-         }
-
-          if(Data_list1.Menu_rank5.new_send_addr[0]==0)
-          {
-              u8g2_DrawUTF8(&u8g2, 300, 60, "中继");
-              laber[0].label_wight=u8g2_GetUTF8Width(&u8g2,"中继");
-          }
-          else if(Data_list1.Menu_rank5.new_send_addr[0]==122)
-          {
-               u8g2_DrawUTF8(&u8g2, 300, 60, "分站");
-               laber[0].label_wight=u8g2_GetUTF8Width(&u8g2,"分站");
-          }
-          else if(Data_list1.Menu_rank5.new_send_addr[0]==121)
-           {
-                u8g2_DrawUTF8(&u8g2, 300, 60, "无");
-                laber[0].label_wight=u8g2_GetUTF8Width(&u8g2,"无");
-           }
-          else
-          {
-               char tmp4[20];
-               sprintf(tmp4, "%d号", Data_list1.Menu_rank5.new_send_addr[0]);
-               u8g2_DrawUTF8(&u8g2, 300, 60, tmp4);
-               laber[0].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)tmp4);
-          }
-
-          if(Data_list1.Menu_rank5.new_send_addr[1]==0)
-           {
-               u8g2_DrawUTF8(&u8g2, 300, 86, "中继");
-               laber[1].label_wight=u8g2_GetUTF8Width(&u8g2,"中继");
-           }
-           else if(Data_list1.Menu_rank5.new_send_addr[1]==122)
-           {
-               u8g2_DrawUTF8(&u8g2, 300, 86, "分站");
-               laber[1].label_wight=u8g2_GetUTF8Width(&u8g2,"分站");
-           }
-           else if(Data_list1.Menu_rank5.new_send_addr[1]==121)
-            {
-                u8g2_DrawUTF8(&u8g2, 300, 86, "无");
-                laber[1].label_wight=u8g2_GetUTF8Width(&u8g2,"无");
-            }
-           else{
-               char tmp5[20];
-
-               sprintf(tmp5, "%d号", Data_list1.Menu_rank5.new_send_addr[1]);
-               u8g2_DrawUTF8(&u8g2, 300, 86, tmp5);
-               laber[1].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)tmp5);
-           }
-
-
-          if(Data_list1.Menu_rank5.new_send_addr[2]==0)
-           {
-               u8g2_DrawUTF8(&u8g2, 300, 112, "中继");
-               laber[2].label_wight=u8g2_GetUTF8Width(&u8g2,"中继");
-           }
-           else if(Data_list1.Menu_rank5.new_send_addr[2]==122)
-           {
-               u8g2_DrawUTF8(&u8g2, 300, 112, "分站");
-               laber[2].label_wight=u8g2_GetUTF8Width(&u8g2,"分站");
-           }
-           else if(Data_list1.Menu_rank5.new_send_addr[2]==121)
-           {
-             u8g2_DrawUTF8(&u8g2, 300, 112, "无");
-             laber[2].label_wight=u8g2_GetUTF8Width(&u8g2,"无");
-           }
-           else
-           {
-               char tmp6[20];
-
-               sprintf(tmp6, "%d号", Data_list1.Menu_rank5.new_send_addr[2]);
-               u8g2_DrawUTF8(&u8g2, 300, 112, tmp6);
-               laber[2].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)tmp6);
-           }
-
-      //   u8g2_DrawUTF8(&u8g2, 250, 120, "1200 mm");
-
-
-         // u8g2_DrawUTF8(&u8g2, 250, 120, "8");
-
-        u8g2_SetFont(&u8g2, UI_FONT_CN);
-        u8g2_DrawUTF8(&u8g2, 120, 156, "保存并重启");         // 下框y=104,高26,垂直居中约122
-        laber[3].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)"保存并重启");
-        u8g2_DrawUTF8(&u8g2, 250, 156, "不保存返回");
-        laber[4].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)"不保存返回");
-
-         if (menu_rank == 3)   // 确保索引有效
-          {
-              if(rank3_addr<5)
-              {
-                 // u8g2_SetFont(&u8g2, u8g2_font16_lunar);
-                  // 获取菜单名称的像素宽度
-                  uint16_t name_width =laber[rank3_addr].label_wight;
-                  // 定义框的边距（与文字保持间距）
-                  uint16_t padding = laber[rank3_addr].kuang_wight;
-                  // 计算框的坐标（根据字体基线调整）
-                  // u8g2 的 y 坐标是基线，假设字体高度约为 16，ascent 约 14，descent 约 2
-                  // 框的左上角 y = posy - 14 - 2（适当微调）
-                  uint16_t x = laber[rank3_addr].posx - padding;
-                  uint16_t y = laber[rank3_addr].posy -laber[rank3_addr].font_size ;  // 根据实际字体调整
-                  uint16_t w = name_width + padding * 2;
-                  uint16_t h =laber[rank3_addr].font_size+ laber[rank3_addr].kuang_high*2;  // 框高度略大于字体高度
-                  // 画框（仅边框，不填充）
-                  u8g2_DrawFrame(&u8g2, x, y, w, h);
-              }
-          }
-
+    uint8_t i;
+    char label[16], old_value[20], new_value[20];
+    ui_menu_text(190u, 61u, "已存地址", 16u);
+    ui_menu_text(290u, 61u, "更改为", 16u);
+    for (i = 0u; i < 3u; i++)
+    {
+        uint16_t y = (uint16_t)(65u + 23u * i);
+        uint16_t old = Data_list1.Menu_rank5.old_send_addr[i];
+        uint16_t next = Data_list1.Menu_rank5.new_send_addr[i];
+        sprintf(label, "上传%d:", i + 1);
+        if (old == 0u) sprintf(old_value, "中继");
+        else if (old == 121u) sprintf(old_value, "无");
+        else if (old == 122u) sprintf(old_value, "分站");
+        else sprintf(old_value, "%d号", old);
+        if (next == 0u) sprintf(new_value, "中继");
+        else if (next == 121u) sprintf(new_value, "无");
+        else if (next == 122u) sprintf(new_value, "分站");
+        else sprintf(new_value, "%d号", next);
+        ui_menu_text(122u, (uint16_t)(y + 17u), label, 16u);
+        ui_menu_control(189u, y, 86u, 22u, old_value, 0u, 1u);
+        ui_menu_control(279u, y, 96u, 22u, new_value, ui_menu_selected(i), 1u);
+    }
+    ui_menu_button(0u, "保存并重启", ui_menu_selected(3u));
+    ui_menu_button(1u, "不保存返回", ui_menu_selected(4u));
 }
-void Other_Settings_Control() {
-
-     uint8_t menu_rank=0;
-     uint8_t rank3_addr=0;
-     menu_rank = Data_list1.menu_rank;
-     rank3_addr = Data_list1.rank3_addr;
-     OptionItem laber[10]=
-     {
-           {110, 70, 14,0,4,4},
-           {250, 70, 14,0,4,4},
-
-           {110, 98, 14,0,4,4},
-           {250, 98, 14,0,4,4},
-
-           {110, 126, 14,0,4,4},
-           {250, 126, 14,0,4,4},
-
-           {110, 154, 14,0,4,4},
-           {250, 154, 14,0,4,4}
-     };
-
-      u8g2_SetFont(&u8g2, UI_FONT_CN);
-      u8g2_DrawUTF8(&u8g2, 110, 70, "通信功率:");          // 框y=72,高26,垂直居中约90
-      laber[0].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)"通信功率:");
-
-      char tmp1[20];
-      sprintf(tmp1, "%d db", Data_list1.Menu_rank6.power);
-      u8g2_DrawUTF8(&u8g2, 250, 70, tmp1);
-      laber[1].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)tmp1);
-
-    //  u8g2_DrawUTF8(&u8g2, 250, 70, "-10 db");
-      u8g2_DrawUTF8(&u8g2, 110, 98, "亮屏时间:");         // 下框y=104,高26,垂直居中约122
-      laber[2].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)"亮屏时间:");
-
-      char tmp2[20];
-      sprintf(tmp2, "%d 秒", Data_list1.Menu_rank6.time_light);
-      u8g2_DrawUTF8(&u8g2, 250, 98, tmp2);
-      laber[3].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)tmp2);
-
-    //  u8g2_DrawUTF8(&u8g2, 250, 98, "30 秒");
-      u8g2_DrawUTF8(&u8g2, 110, 126, "通信状态:");         // 下框y=104,高26,垂直居中约122
-      laber[4].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)"通信状态:");
-
-      if(Data_list1.Menu_rank6.state==1)   /* ★ 契约 §6.5：1 = 开机/工作（与 STM32 On_Off_flag 一致；
-                                            *   原为 ==0 画"开机"，语义相反，已修正） */
-      {
-//      char tmp3[20];
-//      sprintf(tmp3, "%d mm", Data_list1.Menu_rank6.state);
-      u8g2_DrawUTF8(&u8g2, 250, 126, "开机");
-      laber[5].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)"开机");
-      }
-      else{
-//          char tmp3[20];
-//                sprintf(tmp3, "%d mm", Data_list1.Menu_rank6.state);
-        u8g2_DrawUTF8(&u8g2, 250, 126, "不开机");
-        laber[5].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)"不开机");
-      }
-     // u8g2_DrawUTF8(&u8g2, 250, 126, "开机");         // 下框y=104,高26,垂直居中约122
-      u8g2_DrawUTF8(&u8g2, 110, 154, "保存并重启");         // 下框y=104,高26,垂直居中约122
-          laber[6].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)"保存并重启");
-
-          u8g2_DrawUTF8(&u8g2, 250, 154, "不保存返回");
-          laber[7].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)"不保存返回");
-
-//      u8g2_DrawUTF8(&u8g2, 110, 154, "返回菜单");
-//      laber[6].label_wight=u8g2_GetUTF8Width(&u8g2,(const char*)"返回菜单");
-
-      if (menu_rank == 3)   // 确保索引有效
-       {
-           if(rank3_addr<8)
-           {
-              // u8g2_SetFont(&u8g2, u8g2_font16_lunar);
-               // 获取菜单名称的像素宽度
-               uint16_t name_width =laber[rank3_addr].label_wight;
-                                 // 定义框的边距（与文字保持间距）
-                                 uint16_t padding = laber[rank3_addr].kuang_wight;
-                                 // 计算框的坐标（根据字体基线调整）
-                                 // u8g2 的 y 坐标是基线，假设字体高度约为 16，ascent 约 14，descent 约 2
-                                 // 框的左上角 y = posy - 14 - 2（适当微调）
-                                 uint16_t x = laber[rank3_addr].posx - padding;
-                                 uint16_t y = laber[rank3_addr].posy -laber[rank3_addr].font_size ;  // 根据实际字体调整
-                                 uint16_t w = name_width + padding * 2;
-                                 uint16_t h =laber[rank3_addr].font_size+ laber[rank3_addr].kuang_high*2;  // 框高度略大于字体高度
-                                 // 画框（仅边框，不填充）
-                                 u8g2_DrawFrame(&u8g2, x, y, w, h);
-           }
-       }
+void Other_Settings_Control(void)
+{
+    char value[20];
+    sprintf(value, "%d db", Data_list1.Menu_rank6.power);
+    ui_menu_field(49u, "通信功率:", value, ui_menu_selected(0u), ui_menu_selected(1u));
+    sprintf(value, "%d 秒", Data_list1.Menu_rank6.time_light);
+    ui_menu_field(78u, "亮屏时间:", value, ui_menu_selected(2u), ui_menu_selected(3u));
+    ui_menu_field(107u, "通信状态:", Data_list1.Menu_rank6.state == 1 ? "开机" : "不开机",
+                  ui_menu_selected(4u), ui_menu_selected(5u));
+    u8g2_DrawXBMP(&u8g2, 326u, 68u, 46u, 58u, ui_menu_detail_other);
+    ui_menu_button(0u, "保存并重启", ui_menu_selected(6u));
+    ui_menu_button(1u, "不保存返回", ui_menu_selected(7u));
 }
 
 void zero_setting_Control() {
@@ -1810,10 +1631,13 @@ void zero_setting_Control() {
  *   rank3_addr 只能由 STM32 的 0x01 帧写入（Usart3_task.c:479-483），
  *   本函数**绝不**修改这些字段，只画对应的提示。
  *   实际"返回主页"由 STM32 按键（K2 确认）后下发 menu_rank=1 的 0x01 帧完成。 */
-void return_main_Control()
+void return_main_Control(void)
 {
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
-    ui_draw(129, 92, "请按确认键返回主页");
+    /* Static reference artwork only; the STM32 still owns the return action. */
+    u8g2_SetDrawColor(&u8g2, 1u);
+    u8g2_DrawBox(&u8g2, 113u, 1u, 266u, 166u);
+    u8g2_SetDrawColor(&u8g2, 0u);
+    u8g2_DrawXBMP(&u8g2, 113u, 1u, 266u, 166u, ui_menu_return_page);
 }
 
 

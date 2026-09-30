@@ -1,0 +1,10 @@
+output/
+menu_output/
+logo_output/
+logo_hd_output/
+line_output/
+__pycache__/
+*.obj
+*.exe
+*.pdb
+*.ilk
