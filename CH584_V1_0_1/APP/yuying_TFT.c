@@ -139,6 +139,46 @@ static void ch_disp_format(char *dst, size_t size, Sensor_Tpye t, uint16_t raw)
         snprintf(dst, size, "%u", (unsigned int)raw);
 }
 
+/* 解析主页显示用的通道类型，不改写任何通道数据。 */
+static Sensor_Tpye ui_home_channel_type(uint8_t ch)
+{
+    uint8_t i;
+
+    if (ch >= MAX_CH_NUM)
+        return TPYE_NONE;
+
+    /* 绑定完成后，即使实时数据尚未到达，也已经知道通道类型。 */
+    for (i = 0u; i < g_binding_count; i++)
+    {
+        const scan_binding *b = &g_binding_list[i];
+        uint16_t start = b->frist_ch_num;
+        uint16_t end   = (uint16_t)(start + b->ch_num);
+
+        if ((uint16_t)ch >= start && (uint16_t)ch < end)
+        {
+            /* 激光四通道：起始通道是激光，其余三路是倾角。 */
+            if (b->Type == TPYE_JG && b->ch_num == 4u)
+            {
+                if ((uint16_t)ch == start)
+                    return TPYE_JG;
+                return TPYE_QJ;
+            }
+
+            if (b->Type > TPYE_NONE && b->Type < TPYE_END)
+                return b->Type;
+        }
+    }
+
+    /* 兼容已写入通道缓存、但绑定表暂时没有对应记录的情况。 */
+    if (CH_com_buf[ch].Type > TPYE_NONE &&
+        CH_com_buf[ch].Type < TPYE_END)
+    {
+        return CH_com_buf[ch].Type;
+    }
+
+    return TPYE_NONE;
+}
+
 /* 画一行文本并返回其像素宽度
  * ★ x/y 用 uint16_t：主页面单位列/占位符在 x=292 / 312，写成 uint8_t 会被截断
  *   （312→56）导致文字画到错位置，编译期也会报 -Woverflow。 */
@@ -684,6 +724,7 @@ void UI_Main_Display(data_LIST *pData)
     {
         uint8_t   ch  = (uint8_t)(first + i);
         device_t *d   = &CH_com_buf[ch];
+        Sensor_Tpye display_type = ui_home_channel_type(ch);
 
         row = (uint8_t)(i % HOME_ROWS);                /* 0..4 */
         col = (uint8_t)(i / HOME_ROWS);                /* 0 = 左列，1 = 右列 */
@@ -692,14 +733,15 @@ void UI_Main_Display(data_LIST *pData)
 
         ui_main_channel_badge(cx, y, (uint8_t)(ch + 1u));
         /* Channel labels exist before binding; types/units come from binding metadata. */
-        if (d->valid && d->Type > TPYE_NONE && d->Type < TPYE_END)
+        if (display_type > TPYE_NONE && display_type < TPYE_END)
         {
             uint16_t value_w, unit_w, unit_x;
-            const char *unit = CH_TYPE_UNIT[d->Type];
-            ui_text_draw((uint16_t)(cx + HOME_NUM_W), y, CH_TYPE_NAME[d->Type], HOME_TEXT_SIZE);
+            const char *unit = CH_TYPE_UNIT[display_type];
+            ui_text_draw((uint16_t)(cx + HOME_NUM_W), y, CH_TYPE_NAME[display_type], HOME_TEXT_SIZE);
             unit_w = ui_text_width(unit, HOME_TEXT_SIZE);
             unit_x = (uint16_t)(cx + HOME_DATA_RIGHT - unit_w);
-            if (d->data_re_flag) ch_disp_format(buf, sizeof(buf), (Sensor_Tpye)d->Type, d->CH_data);
+            if (d->valid && d->data_re_flag)
+                ch_disp_format(buf, sizeof(buf), display_type, d->CH_data);
             else strcpy(buf, "--");
             value_w = ui_text_width(buf, HOME_TEXT_SIZE);
             ui_text_draw((uint16_t)(unit_x - (unit_w ? 4u : 0u) - value_w), y, buf, HOME_TEXT_SIZE);
@@ -707,7 +749,7 @@ void UI_Main_Display(data_LIST *pData)
         }
         else
         {
-            ui_text_draw((uint16_t)(cx + HOME_NUM_W), y, "通道", HOME_TEXT_SIZE);
+            ui_text_draw((uint16_t)(cx + HOME_NUM_W), y, "--", HOME_TEXT_SIZE);
             ui_text_draw((uint16_t)(cx + HOME_DATA_RIGHT - ui_text_width("--", HOME_TEXT_SIZE)), y, "--", HOME_TEXT_SIZE);
         }
     }

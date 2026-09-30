@@ -100,8 +100,8 @@ def check(output, home_only=False):
                     require(a[5] < b[3] or b[5] < a[3] or a[6] < b[4] or b[6] < a[4],
                             case + ": separate ink " + a[7] + " / " + b[7])
     for case in ("home_empty", "home_page2_empty"):
-        require(count(case, "通道") == 10 and count(case, "--") == 10,
-                case + ": fixed labels before binding")
+        require(count(case, "通道") == 0 and count(case, "--") == 20,
+                case + ": unknown channels use placeholders before binding")
     for case in ("home_bound_waiting", "home_page2_bound_waiting"):
         require(count(case, "--") == 10 and count(case, "0.0") == 0 and count(case, "0") == 0,
                 case + ": bound channels await actual data")
