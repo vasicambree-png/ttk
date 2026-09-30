@@ -485,8 +485,7 @@ void UI_Control(data_LIST *list)
 #define HOME_HEADER_BATTERY_BASE  20u
 #define HOME_STATUS_BASELINE      44u
 #define HOME_STATUS_HOST_RIGHT    372u
-#define HOME_STATUS_STATION_X     169u
-#define HOME_STATUS_STATE_X       102u
+#define HOME_STATUS_GAP           8u
 #define HOME_STATS_X              101u
 #define HOME_STATS_Y              32u
 #define HOME_STATS_W              276u
@@ -649,14 +648,20 @@ void UI_Main_Display(data_LIST *pData)
         else                                           sprintf(send_str, "%d", pData->UI_main.send_host_num);
 
         {
-            const char *state = (pData->UI_main.state == 1) ? "开机" : "关机";
-            sprintf(buf, "状态：%s", state);
-            ui_main_meta_draw(HOME_STATUS_STATE_X, HOME_STATUS_BASELINE, buf);
+            char station_str[20];
+            uint16_t host_x, station_x, state_x;
+            const char *state = (pData->UI_main.state == 1) ? "状态：开机" : "状态：关机";
             sprintf(buf, "本机号：%d-->%s", pData->UI_main.host_num, send_str);
             w = ui_text_width(buf, 11u);
-            ui_main_meta_draw((uint16_t)(HOME_STATUS_HOST_RIGHT - w), HOME_STATUS_BASELINE, buf);
-            sprintf(buf, "分站：%d", pData->UI_main.sub_num);
-            ui_main_meta_draw(HOME_STATUS_STATION_X, HOME_STATUS_BASELINE, buf);
+            sprintf(station_str, "分站：%d", pData->UI_main.sub_num);
+            /* Anchor the group at the right edge; both text gaps stay equal
+             * even when addresses gain digits. All uint16_t maxima fit. */
+            host_x = (uint16_t)(HOME_STATUS_HOST_RIGHT - w);
+            station_x = (uint16_t)(host_x - HOME_STATUS_GAP - ui_text_width(station_str, 11u));
+            state_x = (uint16_t)(station_x - HOME_STATUS_GAP - ui_text_width(state, 11u));
+            ui_main_meta_draw(state_x, HOME_STATUS_BASELINE, state);
+            ui_main_meta_draw(host_x, HOME_STATUS_BASELINE, buf);
+            ui_main_meta_draw(station_x, HOME_STATUS_BASELINE, station_str);
         }
     }
 

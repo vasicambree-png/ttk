@@ -52,8 +52,11 @@ def check(output, home_only=False):
                 machine = next(row for row in rows if row[3].startswith("本机号："))
                 station = next(row for row in rows if row[3].startswith("分站："))
                 require(machine[1:3] == (44, 11) and machine[0] + width(machine) == 372 and
-                        station[:3] == (169, 44, 11) and state[:3] == (102, 44, 11),
-                        case + ": compact header uses explicit safe slots")
+                        station[1:3] == (44, 11) and state[1:3] == (44, 11),
+                        case + ": compact header shares baseline and right anchor")
+                require(station[0] - state[0] - width(state) == 8 and
+                        machine[0] - station[0] - width(station) == 8,
+                        case + ": both header text gaps are eight pixels")
                 require(state[0] >= 98 and state[0] + width(state) < station[0] and
                         station[0] + width(station) < machine[0] and machine[0] + width(machine) <= 372,
                         case + ": longest address/state/station fit without overlap")
