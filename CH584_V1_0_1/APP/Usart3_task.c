@@ -6,6 +6,7 @@
 #include "observer.h"
 #include "u8g2.h"
 #include "yuying_TFT.h"
+#include "screen_power.h"
 
 
 #define START_IO_EVT                  0x0001 //
@@ -16,18 +17,20 @@
 #define START_TIMER_EVT               0x0008 //1秒事件
 
 /* ==================================================================
- * ★★ 契约_息屏省电数据链与页面体系 §4.1（2026-09-22 冻结）：
- *    **UI 刷新门控** —— 只有"STM32 点亮在工作"时才允许画屏。
+ * UI 刷新门控：最近收到有效页面帧，而且显示器未超时关屏，才允许绘图。
  *
  *   g_frame_last_sec = 距最近一次收到 0x01 帧的秒数（下称"帧龄"）：
  *       · 1 秒事件（START_TIMER_EVT）里 +1（饱和，不回绕）；
- *       · parse_received_frame() 的 case 0x01 **校验和通过后**清 0；
+ *       · parse_received_frame() 的 case 0x01 完整解析成功后清 0；
  *       · 初值取"从未收到"哨兵（FRAME_AGE_NEVER >= UI_HOLD_SEC ⇒
  *         开机时门控天然是关的）。
  *   判据（两处都必须满足 g_frame_last_sec <= UI_HOLD_SEC）：
  *       · START_IO_EVT 的 200ms 刷新点：满足才置 dis_flag_cnt = 1；
  *       · START_DATA_EVT 的消费点：满足才真正调 UI_Control()。
- *   ⇒ **息屏期间一个像素都不画**（ST7305 内存屏保持断电前的画面），
+ *   独立的 screen_power 策略使用“其他设置”的 time_light（0 = 常亮）。
+ *   页面/焦点/分页/子页或亮屏时间变化重置计时；普通数据刷新不续亮。
+ *   START_DATA_EVT 仅在显示状态变化时调用 SetPowerSave(1/0)。
+ *   ⇒ 熄屏期间不绘图，
  *     而 BLE 扫描/解析/绑定、0x03 收齐判定、0x06 上报、Flash 落盘
  *     **完全不受影响**（它们都不看这个门）。
  *
@@ -38,6 +41,7 @@
 #define FRAME_AGE_NEVER    0xFFFFFFFFu      /* "从未收到 0x01 帧"哨兵 */
 uint32_t dis_flag_cnt = 0;
 uint32_t g_frame_last_sec = FRAME_AGE_NEVER;    /* 帧龄（秒），门控用，见上 */
+static screen_power_t screen_power;
 
 /* ★ 契约 §2.7：CH584M 本地内容的实时刷新计数。
  *   START_IO_EVT 的周期已修正为 10ms（见下方 UI_IO_TICK_TICKS），
@@ -108,7 +112,7 @@ extern data_LIST Data_list1;
  *   device_t / MAX_CH_NUM 来自 observer.h（本文件第 6 行已 include）。 */
 extern device_t CH_com_buf[MAX_CH_NUM];
 extern uint8_t UI_Select ;
-uint8_t Rx_sleep_flag=0;
+uint8_t Rx_sleep_flag=1;  /* 1 = display off; only main-loop/TMOS code accesses it. */
  uint8_t app_uart_rx_buffer[512] = {0};
 
 // app_drv_fifo_t app_uart_tx_fifo;
@@ -224,6 +228,19 @@ uint16_t cmd05_drop_cnt = 0;   /* 被丢弃的 0x05 请求帧数 */
 
 extern u8g2_t u8g2;
 extern device_info_t device_list[MAX_DEVICES];
+
+/* Display power is independent of UART/BLE processing. Parser only updates
+ * policy; SPI commands and redraw requests are consumed in the 20 ms event. */
+static void screen_power_process(void)
+{
+    uint8_t off = screen_power_is_off(&screen_power, TMOS_GetSystemClock());
+    if (off != Rx_sleep_flag)
+    {
+        u8g2_SetPowerSave(&u8g2, off);
+        Rx_sleep_flag = off;
+        dis_flag_cnt = off ? 0u : 1u;
+    }
+}
 
 /* ★★ 线路状态错误计数（只计数，绝不打印 —— ISR 里不能做阻塞式 PRINT） */
 volatile uint16_t uart3_line_err_cnt = 0;
@@ -458,10 +475,9 @@ uint16_t usart_ProcessEvent(uint8_t task_id, uint16_t events)
        if (++ui_refresh_tick >= UI_REFRESH_TICKS)
        {
            ui_refresh_tick = 0;
-           /* ★ 契约 §4.1 门控：只在"最近 UI_HOLD_SEC(5) 秒内收到过 0x01 帧"时才
-            *   请求重画。STM32 息屏后不再发 0x01 ⇒ 帧龄很快超过 5 秒 ⇒
-            *   这里恒不置位，于是一个像素都不画（内存屏保持断电前的画面）。 */
-           if (g_frame_last_sec <= UI_HOLD_SEC)
+           /* Only request redraw with recent valid page data and display on.
+              Background BLE parsing above continues with either gate closed. */
+           if (g_frame_last_sec <= UI_HOLD_SEC && !Rx_sleep_flag)
                dis_flag_cnt = 1;          /* 门开：请求一次重画（本地数据也刷新） */
        }
 
@@ -471,11 +487,10 @@ uint16_t usart_ProcessEvent(uint8_t task_id, uint16_t events)
    }
    if(events & START_DATA_EVT) //数据事件
    {
-     /* ★ 契约 §4.1：**消费点同样受门控**。
-      *   门关着（息屏 / STM32 未点亮）⇒ 丢弃挂起的重画请求，一个像素都不画；
-      *   唤醒后第一帧 0x01 既把帧龄清 0（开门），又在 app_uart_process 里
-      *   dis_flag_cnt++ ⇒ 立刻补画一次，画面不会漏刷。 */
-     if (g_frame_last_sec > UI_HOLD_SEC)
+     screen_power_process();
+     /* Consume redraws only while on with recent page data. A navigation
+        change wakes once and requests a redraw of the latest cached data. */
+     if (g_frame_last_sec > UI_HOLD_SEC || Rx_sleep_flag)
      {
         dis_flag_cnt = 0;              /* 门控关：清掉挂起请求（息屏期绝不落笔） */
      }
@@ -546,11 +561,12 @@ uint16_t usart_ProcessEvent(uint8_t task_id, uint16_t events)
         if (g_ui_reinit_req)
         {
             g_ui_reinit_req = 0;
-            /* 门控：息屏期间（STM32 超过 UI_HOLD_SEC 没发 0x01）不做屏幕初始化，
-               免得把已经断电/不该亮的屏给初始化了。 */
-            if (g_frame_last_sec <= UI_HOLD_SEC)
+            /* Do not let deferred initialization reopen an expired display. */
+            if (g_frame_last_sec <= UI_HOLD_SEC &&
+                !screen_power_is_off(&screen_power, TMOS_GetSystemClock()))
             {
                 u8g2Init(&u8g2);
+                Rx_sleep_flag = 0u;      /* u8g2Init() enables the display. */
                 dis_flag_cnt = 1;        /* 重新初始化后补画一帧 */
             }
         }
@@ -660,6 +676,10 @@ uint16_t usart_ProcessEvent(uint8_t task_id, uint16_t events)
 __HIGH_CODE
 void usart_task(void)
 {
+    /* InitDisplay ran before task registration. Keep display off until a
+       complete accepted page arrives; receiving data never stops. */
+    u8g2_SetPowerSave(&u8g2, 1u);
+    Rx_sleep_flag = 1u;
 
     usartTaskId = TMOS_ProcessEventRegister(usart_ProcessEvent);
 
@@ -887,6 +907,8 @@ void send_round_report(void)
 __HIGH_CODE
 uint8_t parse_received_frame(uint8_t *rx_buffer, uint16_t data_len, data_LIST *pData)
 {
+    if (rx_buffer == NULL || pData == NULL || data_len < 7u)
+        return 1;
     // 1. 检查帧头帧尾
     if (rx_buffer[0] != 0xAA || rx_buffer[1] != 0xEE || rx_buffer[data_len-1] != 0x0A)
     {
@@ -911,6 +933,7 @@ uint8_t parse_received_frame(uint8_t *rx_buffer, uint16_t data_len, data_LIST *p
     switch(cmd)
     {
       case 0x01:
+        if (data_len < 12u) return 6;
         Sensor_Tpye sensor_type = (Sensor_Tpye)rx_buffer[5];
           uint8_t menu_rank = rx_buffer[6];
           uint8_t rank2 = rx_buffer[7];
@@ -943,7 +966,7 @@ uint8_t parse_received_frame(uint8_t *rx_buffer, uint16_t data_len, data_LIST *p
              现在按 LEN 反推应有的个数，不相等就整帧拒绝 ——
              合法帧永远相等（STM32 侧 total_len = 6 + 2*param_cnt），
              所以这个校验对正常通信零影响。 */
-          if ((total_len < 6U) ||
+          if ((total_len < 6U) || ((total_len - 6U) & 1U) ||
               (param_cnt != (uint8_t)((total_len - 6U) / 2U)) ||
               (param_cnt > 30U))
           {
@@ -965,11 +988,26 @@ uint8_t parse_received_frame(uint8_t *rx_buffer, uint16_t data_len, data_LIST *p
               return 4;
           }
 
-          /* ★ 契约 §4.1：收到一条**合法**的 0x01 帧 = "STM32 正在点亮在工作"，
-           *   把帧龄清 0 ⇒ 打开 UI 刷新门控（START_IO_EVT 的 200ms 刷新点与
-           *   START_DATA_EVT 的消费点都看这个门）。
-           *   放在校验和之后：坏帧/被篡改的帧不算"点亮"。 */
-          g_frame_last_sec = 0;
+          /* Reject incomplete/unknown pages before changing page state or
+             sleep policy. Home reads ten fixed parameters, not five. */
+          if (menu_rank == 1u)
+          {
+              if (param_cnt < 10u) return 5;
+          }
+          else if (menu_rank == 2u || menu_rank == 3u)
+          {
+              /* Each menu includes its data plus trailing page/re_flag. */
+              static const uint8_t min_params[7] = {4u, 8u, 16u, 23u, 8u, 5u, 10u};
+              if (rank2 >= 7u || param_cnt < min_params[rank2]) return 5;
+          }
+          else if (menu_rank == 6u)
+          {
+              if (param_cnt < 1u) return 11;
+          }
+          else if (menu_rank != 4u && menu_rank != 5u)
+          {
+              return 10;
+          }
 
           /* ★★★ V1_0_2 第六轮：menu_rank == 6 是"保存结果提示页"，它**不是页面状态**，
              所以绝不能写进 Data_list1 —— 否则提示消失后 UI_Control 会按 rank=6
@@ -989,8 +1027,8 @@ uint8_t parse_received_frame(uint8_t *rx_buffer, uint16_t data_len, data_LIST *p
           {
               case 1:
               {
-                  if (param_cnt < 5)
-                      return 5;   // 至少5个固定参数
+                  if (param_cnt < 10)
+                      return 5;   // 十个固定参数
                   uint8_t pos = 0;
                   pData->UI_main.version       = param_data[pos++];
                   pData->UI_main.vbat          = param_data[pos++];
@@ -1151,6 +1189,25 @@ uint8_t parse_received_frame(uint8_t *rx_buffer, uint16_t data_len, data_LIST *p
                   break;
               default:
                   return 10;   // 无效 menu_rank
+          }
+          /* Always accept/cache valid data, even with display off. Only
+             navigation or timeout changes count as activity; measurements
+             (battery, RSSI, sensor values) deliberately do not. */
+          g_frame_last_sec = 0u;
+          if (menu_rank >= 1u && menu_rank <= 4u)
+          {
+              uint16_t page = (menu_rank == 1u) ? pData->UI_main.chu_num1 :
+                              ((menu_rank == 2u || menu_rank == 3u) ?
+                               pData->UI_main.chu_num2 : 0u);
+              uint8_t subpage = (menu_rank == 2u || menu_rank == 3u) ?
+                                pData->UI_main.re_flag : 0u;
+              screen_power_note_page(&screen_power, TMOS_GetSystemClock(),
+                                     menu_rank, rank2, rank3, page, subpage,
+                                     pData->Menu_rank6.time_light);
+          }
+          else if (menu_rank == 5u)
+          {
+              screen_power_wake(&screen_power, TMOS_GetSystemClock());
           }
         break;
         case 0x02:
