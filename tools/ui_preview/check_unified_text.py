@@ -51,20 +51,28 @@ def check(output, home_only=False):
             for state in states:
                 machine = next(row for row in rows if row[3].startswith("本机号："))
                 station = next(row for row in rows if row[3].startswith("分站："))
-                require(machine[1:3] == (44, 11) and machine[0] + width(machine) == 372 and
-                        station[1:3] == (44, 11) and state[1:3] == (44, 11),
-                        case + ": compact header shares baseline and right anchor")
-                require(station[0] - state[0] - width(state) == 8 and
-                        machine[0] - station[0] - width(station) == 8,
-                        case + ": both header text gaps are eight pixels")
+                sizes = [size for size in (14, 11) if
+                         sum(sum(tables[size][ord(c)] for c in row[3])
+                             for row in (state, station, machine)) + 8 <= 270]
+                expected_size = sizes[0]
+                require(machine[1:3] == (44, expected_size) and machine[0] + width(machine) == 372 and
+                        station[1:3] == (44, expected_size) and state[:3] == (102, 44, expected_size),
+                        case + ": enlarged header fills its band with one shared font")
+                first_gap = station[0] - state[0] - width(state)
+                second_gap = machine[0] - station[0] - width(station)
+                require(min(first_gap, second_gap) >= 4 and abs(first_gap - second_gap) <= 1,
+                        case + ": free space is shared equally between header groups")
                 require(state[0] >= 98 and state[0] + width(state) < station[0] and
                         station[0] + width(station) < machine[0] and machine[0] + width(machine) <= 372,
                         case + ": longest address/state/station fit without overlap")
             stats = [row for row in rows if row[3].startswith(("已绑定:", "已用通道:", "报警:"))]
             require(len(states) == 1 and not stats or not states and len(stats) == 3,
                     case + ": exactly one page header variant")
-            require(all(row[1:3] == (44, 11) and row[0] >= 98 and row[0] + width(row) <= 372
-                        for row in stats), case + ": statistics above data beside logo")
+            if stats:
+                stat_sizes = {row[2] for row in stats}
+                require(stat_sizes == {14} and
+                        all(row[1] == 44 and row[0] >= 98 and row[0] + width(row) <= 372
+                            for row in stats), case + ": statistics share the header font beside logo")
             data_rows = [row for row in rows if row[1] >= 52]
             for row in data_rows:
                 is_badge = row[3].isdigit() and (row[0] < 40 or 203 <= row[0] < 225)
@@ -85,7 +93,7 @@ def check(output, home_only=False):
                     require(left <= x0 <= x1 <= right and 53 + 22 * row_index <= y0 <= y1 <= 73 + 22 * row_index,
                             case + ": ink inside its data cell " + text)
                 elif text.startswith(("本机号：", "分站：", "状态：", "已绑定:", "已用通道:", "报警:")):
-                    require(98 <= x0 <= x1 <= 372 and 33 <= y0 <= y1 <= 46,
+                    require(98 <= x0 <= x1 <= 372 and 31 <= y0 <= y1 <= 46,
                             case + ": header ink beside logo " + text)
             for index, a in enumerate(case_inks):
                 for b in case_inks[index + 1:]:

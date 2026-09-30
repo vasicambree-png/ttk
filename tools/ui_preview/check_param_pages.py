@@ -38,8 +38,8 @@ def check(output):
                     ((14 <= row[0] < 36) if i < 5 else (203 <= row[0] < 225)),
                     name + ": five rows per column " + row[3])
         label = {3: "信号:", 4: "电压:", 5: "名称:"}[int(case["subpage"])]
-        require(sum(row[3] == label for row in data) == 10,
-                name + ": ten fixed labels")
+        require(sum(row[3] == label for row in data) == 0,
+                name + ": no repeated row label")
         require(all(row[1] in (70, 92, 114, 136, 158) for row in data),
                 name + ": shared home data baselines")
         require(sum(row[3] == ("返回" if page2 else "下一页") for row in rows) == 1 and
@@ -59,7 +59,7 @@ def check(output):
                 require(a[5] < b[3] or b[5] < a[3] or a[6] < b[4] or b[6] < a[4],
                         name + ": separate ink " + a[7] + " / " + b[7])
         if "waiting" in name:
-            values = [row[3] for row in data if row[3] not in (label,) and not row[3].isdigit()]
+            values = [row[3] for row in data if not row[3].isdigit()]
             require(sum(text.startswith("SW_") for text in values) == 10 if int(case["subpage"]) == 5
                     else values.count("--") == 10, name + ": binding names or unread placeholders")
         if "received_zero" in name:

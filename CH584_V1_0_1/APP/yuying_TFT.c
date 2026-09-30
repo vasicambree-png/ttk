@@ -484,23 +484,9 @@ void UI_Control(data_LIST *list)
 #define HOME_HEADER_BATTERY_RIGHT 372u
 #define HOME_HEADER_BATTERY_BASE  20u
 #define HOME_STATUS_BASELINE      44u
+#define HOME_STATUS_LEFT          102u
 #define HOME_STATUS_HOST_RIGHT    372u
-#define HOME_STATUS_GAP           8u
-#define HOME_STATS_X              101u
-#define HOME_STATS_Y              32u
-#define HOME_STATS_W              276u
-#define HOME_STATS_H              17u
-#define HOME_STATS_DIVIDER_Y      35u
-#define HOME_STATS_DIVIDER_H      11u
-#define HOME_STATS_BASELINE       44u
-#define HOME_STATS_DIVIDER_1      190u
-#define HOME_STATS_DIVIDER_2      294u
-#define HOME_STATS_COL1_X         105u
-#define HOME_STATS_COL1_W         84u
-#define HOME_STATS_COL2_X         191u
-#define HOME_STATS_COL2_W         102u
-#define HOME_STATS_COL3_X         295u
-#define HOME_STATS_COL3_W         77u
+#define HOME_STATUS_MIN_GAP       4u
 
 /* 切角横纵跨度相等，保持 45 度直线，供主页各类边框共用。 */
 static void ui_main_cut_frame(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
@@ -585,9 +571,34 @@ static uint16_t ui_main_meta_code(const uint8_t **cursor)
     return code;
 }
 
-static void ui_main_meta_draw(uint16_t x, uint16_t baseline, const char *text)
+static void ui_main_meta_draw(uint16_t x, uint16_t baseline, const char *text, uint8_t size)
 {
-    ui_text_draw(x, baseline, text, 11u);
+    ui_text_draw(x, baseline, text, size);
+}
+
+/* Both home headers share the font choice, baseline and balanced spacing. */
+static void ui_main_header_triplet(const char *left, const char *middle, const char *right)
+{
+    uint16_t left_w, middle_w, right_w, total_w, gap, middle_x, right_x;
+    uint8_t size = 14u;
+    left_w = ui_text_width(left, size);
+    middle_w = ui_text_width(middle, size);
+    right_w = ui_text_width(right, size);
+    total_w = (uint16_t)(left_w + middle_w + right_w);
+    if (total_w + 2u * HOME_STATUS_MIN_GAP > HOME_STATUS_HOST_RIGHT - HOME_STATUS_LEFT)
+    {
+        size = 11u;
+        left_w = ui_text_width(left, size);
+        middle_w = ui_text_width(middle, size);
+        right_w = ui_text_width(right, size);
+        total_w = (uint16_t)(left_w + middle_w + right_w);
+    }
+    gap = (uint16_t)((HOME_STATUS_HOST_RIGHT - HOME_STATUS_LEFT - total_w) / 2u);
+    middle_x = (uint16_t)(HOME_STATUS_LEFT + left_w + gap);
+    right_x = (uint16_t)(HOME_STATUS_HOST_RIGHT - right_w);
+    ui_main_meta_draw(HOME_STATUS_LEFT, HOME_STATUS_BASELINE, left, size);
+    ui_main_meta_draw(right_x, HOME_STATUS_BASELINE, right, size);
+    ui_main_meta_draw(middle_x, HOME_STATUS_BASELINE, middle, size);
 }
 
 /* 通道号在徽标中居中，并为两位数与框线保留一像素空白。 */
@@ -649,19 +660,10 @@ void UI_Main_Display(data_LIST *pData)
 
         {
             char station_str[20];
-            uint16_t host_x, station_x, state_x;
             const char *state = (pData->UI_main.state == 1) ? "状态：开机" : "状态：关机";
             sprintf(buf, "本机号：%d-->%s", pData->UI_main.host_num, send_str);
-            w = ui_text_width(buf, 11u);
             sprintf(station_str, "分站：%d", pData->UI_main.sub_num);
-            /* Anchor the group at the right edge; both text gaps stay equal
-             * even when addresses gain digits. All uint16_t maxima fit. */
-            host_x = (uint16_t)(HOME_STATUS_HOST_RIGHT - w);
-            station_x = (uint16_t)(host_x - HOME_STATUS_GAP - ui_text_width(station_str, 11u));
-            state_x = (uint16_t)(station_x - HOME_STATUS_GAP - ui_text_width(state, 11u));
-            ui_main_meta_draw(state_x, HOME_STATUS_BASELINE, state);
-            ui_main_meta_draw(host_x, HOME_STATUS_BASELINE, buf);
-            ui_main_meta_draw(station_x, HOME_STATUS_BASELINE, station_str);
+            ui_main_header_triplet(state, station_str, buf);
         }
     }
 
@@ -713,24 +715,11 @@ void UI_Main_Display(data_LIST *pData)
     /* ---------- 第 2 页专属：三段统计栏收至Logo右侧上方 ---------- */
     if (page == 2u)
     {
-        ui_main_cut_frame(HOME_STATS_X, HOME_STATS_Y, HOME_STATS_W, HOME_STATS_H, 4u);
-        u8g2_DrawVLine(&u8g2, HOME_STATS_DIVIDER_1, HOME_STATS_DIVIDER_Y,
-                       HOME_STATS_DIVIDER_H);
-        u8g2_DrawVLine(&u8g2, HOME_STATS_DIVIDER_2, HOME_STATS_DIVIDER_Y,
-                       HOME_STATS_DIVIDER_H);
-
-        sprintf(buf, "已绑定: %d", g_binding_count);
-        w = (uint16_t)ui_text_width(buf, 11u);
-        ui_text_draw((uint16_t)(HOME_STATS_COL1_X + (HOME_STATS_COL1_W - w) / 2u),
-                HOME_STATS_BASELINE, buf, 11u);
-        sprintf(buf, "已用通道: %d", count_used_channels());
-        w = (uint16_t)ui_text_width(buf, 11u);
-        ui_text_draw((uint16_t)(HOME_STATS_COL2_X + (HOME_STATS_COL2_W - w) / 2u),
-                HOME_STATS_BASELINE, buf, 11u);
+        char bound_str[20], used_str[24];
+        sprintf(bound_str, "已绑定: %d", g_binding_count);
+        sprintf(used_str, "已用通道: %d", count_used_channels());
         sprintf(buf, "报警: %d", (int)(g_name_err_count + g_volt_err_count));
-        w = (uint16_t)ui_text_width(buf, 11u);
-        ui_text_draw((uint16_t)(HOME_STATS_COL3_X + (HOME_STATS_COL3_W - w) / 2u),
-                HOME_STATS_BASELINE, buf, 11u);
+        ui_main_header_triplet(bound_str, used_str, buf);
     }
     u8g2_SetBitmapMode(&u8g2, bitmap_mode);
 }
@@ -1000,7 +989,7 @@ static void ui_param_header(uint16_t page, const char *title)
 static void summary_name_page(uint16_t page)
 {
     uint8_t i, first = ui_param_first(page);
-    uint16_t cx, y, name_x, label_w = ui_text_width("名称:", HOME_TEXT_SIZE);
+    uint16_t cx, y, name_x;
     device_t *d;
 
     ui_param_header(page, "名称");
@@ -1011,8 +1000,7 @@ static void summary_name_page(uint16_t page)
         y = (uint16_t)(HOME_GRID_TOP + 18u + HOME_ROW_H * (i % HOME_ROWS));
         d = &CH_com_buf[ch];
         ui_main_channel_badge(cx, y, (uint8_t)(ch + 1u));
-        ui_text_draw((uint16_t)(cx + HOME_NUM_W), y, "名称:", HOME_TEXT_SIZE);
-        name_x = (uint16_t)(cx + HOME_NUM_W + label_w + 4u);
+        name_x = (uint16_t)(cx + HOME_NUM_W + 6u);
         if (d->valid && d->name[0] != '\0')
             ui_draw_name_size(name_x, y, d->name,
                               (uint16_t)(cx + HOME_DATA_RIGHT - name_x), HOME_TEXT_SIZE);
@@ -1365,8 +1353,6 @@ static void install_ch_page(uint8_t kind, uint16_t page)
     char buf[32];
     uint8_t i, first = ui_param_first(page);
     uint16_t cx, y, w;
-    const char *label = (kind == 3u) ? "信号:" : "电压:";
-    uint16_t label_w = ui_text_width(label, HOME_TEXT_SIZE);
     device_t *d;
 
     ui_param_header(page, (kind == 3u) ? "信号" : "电压");
@@ -1378,12 +1364,11 @@ static void install_ch_page(uint8_t kind, uint16_t page)
         y = (uint16_t)(HOME_GRID_TOP + 18u + HOME_ROW_H * (i % HOME_ROWS));
         d = &CH_com_buf[ch];
         ui_main_channel_badge(cx, y, (uint8_t)(ch + 1u));
-        ui_text_draw((uint16_t)(cx + HOME_NUM_W), y, label, HOME_TEXT_SIZE);
         if (!(d->valid && d->data_re_flag)) strcpy(buf, "--");
         else if (kind == 3u) sprintf(buf, "%d dBm", (int)(int8_t)d->rssi);
         else sprintf(buf, "%d.%d V", d->voltage / 10, d->voltage % 10);
         w = ui_text_width(buf, size);
-        if (HOME_NUM_W + label_w + 4u + w > HOME_DATA_RIGHT)
+        if (HOME_NUM_W + 8u + w > HOME_DATA_RIGHT)
         {
             size = 16u;
             w = ui_text_width(buf, size);
