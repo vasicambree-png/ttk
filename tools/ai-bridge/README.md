@@ -1,15 +1,21 @@
 # Codex + DeepSeek + GitHub 接续工具
 
-这套工具从任意已配置 GitHub 的本地 Git 仓库运行。DeepSeek 使用 Codex CLI 执行，任务完成后按任务要求验证、提交和推送；官方 GPT 可以读取本机保存的 DeepSeek 对话继续分析。无需修改默认 Codex 模型、官方登录或已有 relay profile。
+这套工具从任意已配置 GitHub 的本地 Git 仓库运行。DeepSeek 使用 Codex 执行，任务完成后按任务要求验证、提交和推送；官方 GPT 可以读取本机保存的 DeepSeek 对话继续分析。官方登录和已有 relay profile 保留。
+
+## 可见模型列表入口
+
+原生桌面配置见 `使用DeepSeek模型列表.md`。安装后重新打开 Codex，新建聊天即可在 DeepSeek 模式中选择 Flash / Pro 并粘贴网页方案。`切换Codex模型.cmd` 提供可视的 DeepSeek / 官方 GPT 模式切换，切换后需重新打开 Codex。官方模式原值已备份，登录文件保持原样。
+
+以下终端工作流仍可使用。启动器和原生桌面模式是两个入口：终端启动器只覆盖本次参数；原生模式切换按需修改用户级的模型、供应商、目录和联网相关选项。
 
 ## 已配置的入口
 
 - 模型：`deepseek-flash`，Responses 地址：`https://api.deepseek.com/`。
-- 密钥：Windows 凭据管理器的 `CodexDeepSeekBridge/API`，启动时只传到子进程环境变量。未写入代码、TOML、任务单或 Git 仓库。
+- 密钥：Windows 凭据管理器的 `CodexDeepSeekBridge/API`。终端启动器通过子进程环境变量传入，原生桌面通过 Codex 的认证命令读取。未写入代码、TOML、任务单或 Git 仓库。
 - Codex：优先使用正常 `codex.cmd` 所属的原生可执行文件；本机核实为 CLI 0.156.1。
 - 依赖：Windows、现有 Python、Git、Codex CLI。工具没有安装新依赖。
 - 对话：沿用现有 `CODEX_HOME`。执行日志另存于本工具所在工作区的 `work/bridge-runs/`。每次输出会话 ID 和 `codex://threads/<ID>`。
-- 启动器只使用本次启动参数，不直接修改用户级 config/profile。Codex CLI 会按其正常机制记录项目信任信息；测试时自动新增了临时目录信任项，官方默认模型、登录和 relay profile 未改变。
+- 终端启动器只使用本次启动参数，不直接修改用户级 config/profile。原生桌面切换入口会备份并修改必要的模型配置，点击恢复官方模式可还原原值；登录文件和 relay profile 保留。
 - 正常任务继承用户已有的 `sandbox_mode` 和 `approval_policy`；本机现有配置为 danger-full-access / never。只读调用与隔离测试分别使用只读和 workspace-write。Git 提交需要 `.git` 写权限，GitHub 同步需要本机凭据与网络权限，限制这些权限的环境会明确报告未完成。
 
 ## 网页版 → DeepSeek → GitHub
@@ -43,7 +49,7 @@
 
 本轮已实测 GPT 成功读取 DeepSeek 记录。直接跨供应商 `fork` 出现接口内容格式错误，因此 `-Fork` 属于高级选项，尚未验证可用于跨模型接续；同供应商恢复可使用 `-Resume`，仍需按真实运行结果判断。
 
-本机默认 `gpt-6.1-sol` 被测试接口拒绝；`gpt-6-sol` 来自账号实时模型列表，并已成功调用。工具没有更改官方默认模型。可用模型和额度以账号当时状态为准。
+本机原官方默认 `gpt-6.1-sol` 被终端测试接口拒绝；`gpt-6-sol` 来自当时账号模型列表，并已成功调用。恢复官方桌面模式时仍还原用户原值 `gpt-6.1-sol`。可用模型和额度以账号当时状态为准。
 
 ## 密钥维护和诊断
 
