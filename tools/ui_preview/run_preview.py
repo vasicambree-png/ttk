@@ -22,7 +22,7 @@ def png_chunk(kind: bytes, content: bytes) -> bytes:
     return struct.pack(">I", len(content)) + kind + content + struct.pack(">I", zlib.crc32(kind + content) & 0xffffffff)
 
 
-def pgm_to_png(path: Path, scale: int = 1) -> Path:
+def pgm_to_png(path: Path, scale: int = 1, destination: Path | None = None) -> Path:
     magic, dimensions, levels, pixels = path.read_bytes().split(b"\n", 3)
     width, height = map(int, dimensions.split())
     if magic != b"P5" or levels != b"255" or len(pixels) != width * height:
@@ -36,7 +36,7 @@ def pgm_to_png(path: Path, scale: int = 1) -> Path:
     content += png_chunk(b"IHDR", struct.pack(">IIBBBBB", width * scale, height * scale, 8, 0, 0, 0, 0))
     content += png_chunk(b"IDAT", zlib.compress(b"".join(rows), 9))
     content += png_chunk(b"IEND", b"")
-    destination = path.with_name(path.stem + (f"_{scale}x" if scale > 1 else "") + ".png")
+    destination = destination or path.with_name(path.stem + (f"_{scale}x" if scale > 1 else "") + ".png")
     destination.write_bytes(content)
     return destination
 
@@ -115,11 +115,11 @@ def report(phases: list[str], output: Path, scope: str) -> dict:
     retained_label = "主页、消息提示、保存提示时基和重启提示" if scope == "menus" else "菜单、子页、保存和关机提示"
     lines += ["", f"{retained_label}逐像素对比：{len(comparisons)} 个用例，" +
               ("全部相同。" if comparisons and result["retained_pages_pixel_identical"] else "有变化或尚未运行完整对比。"), "",
-              "主页用例包括参考图数值、页 2、空通道、无效类型、uint16 极值、倾角正负极值、关机状态和发送地址 0/121/122。每个用例检查三次绘制：初次、连续刷新、重新初始化离线绘图上下文。", "",
+              "主页用例包括两页正常/空通道/uint16 极值、host_num=0、普通最大发送地址、sub_num 最大值、倾角极值、开关机状态和发送地址 0/121/122。每个用例检查三次绘制：初次、连续刷新、重新初始化离线绘图上下文。", "",
               "主页分页契约检查：第 1 页状态行区域必须有墨迹、底部统计栏区域必须全白；第 2 页状态行区域必须全白、底部统计栏区域必须有墨迹；切角通道号只允许出现本页的 1..10 或 11..20。逐用例结果见 `cases.tsv` 的 `region_violations` 列和 `draws.tsv` 的 `HOME_REGIONS` 记录。", "",
               "每次绘制前后比较页面输入、20 通道、绑定表、扫描缓存、绑定数量、告警数量、名称检查计数和当前消息码。所有页面检查绘图前后的位图透明模式。", "",
               "文字边界统计包含 draw_color=0 的反白文字；不因像素最终为白色而跳过。宿主启动时用真实字库验证右侧越界及整体位于屏幕左侧的反白文字都能被检出。", "",
-              "输出：原生分辨率 PNG、" + ("每个用例的 `*_3x.png`。" if scope == "menus" else "`after/home_example_4x.png`。") + "放大均为整数倍最近邻；另有 `draws.tsv`、`cases.tsv` 和 `report.json`。", "",
+              "输出：原生分辨率 PNG、" + ("每个用例的 `*_3x.png`。" if scope == "menus" else "`after/home_example_4x.png` 及两页正常画面的 `home_page1_3x.png` / `home_page2_3x.png`。") + "放大均为整数倍最近邻；另有 `draws.tsv`、`cases.tsv` 和 `report.json`。", "",
               "本工具不验证 UART/BLE/Flash/刷新调度或实物显示；这些需要相应构建、联机或硬件检查。", ""]
     if scope == "menus":
         lines += ["菜单范围允许二三级菜单视觉变化，要求所有 home_*、message_*、save_message_tick*、power_off_message_tick10 和 restart_confirmation 前后逐像素一致。", "",
@@ -137,6 +137,13 @@ def report(phases: list[str], output: Path, scope: str) -> dict:
             for finding in data["case_findings"]:
                 lines.append(f"- {finding['case']}: 缺字 {finding['missing_glyphs']}，越界 {finding['boundary_events']}，数据改写 {finding['data_mutations']}，重绘差异 {finding['redraw_mismatches']}，位图模式 {finding.get('bitmap_state_changes', 0)}。")
             lines.append("")
+    if scope == "home" and "after" in phases:
+        after_dir = output / "after"
+        for source_name, target_name in (("home_example", "home_page1_3x"),
+                                         ("home_page2", "home_page2_3x")):
+            source = after_dir / f"{source_name}.pgm"
+            if source.exists():
+                pgm_to_png(source, 3, after_dir / f"{target_name}.png")
     (output / "report.md").write_text("\n".join(lines), encoding="utf-8")
     return result
 

@@ -434,12 +434,35 @@ void UI_Control(data_LIST *list)
 #define HOME_GRID_TOP     46
 #define HOME_ROW_H        19
 #define HOME_ROWS         5
-#define HOME_COL_SPLIT_X  192
 #define HOME_CELL_L_X     14
 #define HOME_CELL_R_X     203
 #define HOME_NUM_W        24
 #define HOME_DATA_RIGHT   166
 #define HOME_ROW_BASE(i)  ((uint8_t)(HOME_GRID_TOP + 14 + HOME_ROW_H * (i)))
+#define HOME_HEADER_BATTERY_RIGHT 372u
+#define HOME_HEADER_BATTERY_BASE  20u
+#define HOME_STATUS_BASELINE      39u
+#define HOME_STATUS_LEFT          14u
+#define HOME_STATUS_RIGHT         374u
+#define HOME_STATUS_MIN_GAP       12u
+#define HOME_STATUS_DIVIDER_X     8u
+#define HOME_STATUS_DIVIDER_W     369u
+#define HOME_STATUS_DIVIDER_Y     44u
+#define HOME_STATS_X              6u
+#define HOME_STATS_Y              147u
+#define HOME_STATS_W              372u
+#define HOME_STATS_H              17u
+#define HOME_STATS_DIVIDER_Y      150u
+#define HOME_STATS_DIVIDER_H      11u
+#define HOME_STATS_BASELINE       161u
+#define HOME_STATS_DIVIDER_1      130u
+#define HOME_STATS_DIVIDER_2      254u
+#define HOME_STATS_COL1_X         7u
+#define HOME_STATS_COL1_W         123u
+#define HOME_STATS_COL2_X         131u
+#define HOME_STATS_COL2_W         123u
+#define HOME_STATS_COL3_X         255u
+#define HOME_STATS_COL3_W         122u
 
 /* 切角横纵跨度相等，保持 45 度直线，供主页各类边框共用。 */
 static void ui_main_cut_frame(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
@@ -626,7 +649,7 @@ void UI_Main_Display(data_LIST *pData)
             pData->UI_main.vbat % 100 % 10);
     u8g2_SetFont(&u8g2, u8g2_font_helvB10_tr);
     w = (uint16_t)u8g2_GetUTF8Width(&u8g2, buf);
-    ui_draw((uint16_t)(372u - w), 20u, buf);
+    ui_draw((uint16_t)(HOME_HEADER_BATTERY_RIGHT - w), HOME_HEADER_BATTERY_BASE, buf);
     u8g2_SetFont(&u8g2, UI_FONT_CN);
 
     /* ---------- 第 1 页专属：状态、本机号和分站号：只重排显示，不改字段来源 ---------- */
@@ -639,6 +662,7 @@ void UI_Main_Display(data_LIST *pData)
 
         {
             uint16_t state_w, machine_w, station_w, state_x, machine_x, station_x;
+            uint16_t machine_left, machine_right;
             const char *state = (pData->UI_main.state == 1) ? "开机" : "关机";
 
             sprintf(buf, "状态：%s", state);
@@ -647,29 +671,26 @@ void UI_Main_Display(data_LIST *pData)
             machine_w = ui_main_meta_width(buf);
             sprintf(buf, "分站：%d", pData->UI_main.sub_num);
             station_w = ui_main_meta_width(buf);
-            station_x = (uint16_t)(374u - station_w);
-            machine_x = (uint16_t)(station_x - 12u - machine_w);
-            state_x = (uint16_t)(machine_x - 18u - state_w);
-
-            if (state_x > 94u)
-                u8g2_DrawHLine(&u8g2, (uint16_t)(state_x - 29u), 35u, 23u);
-            u8g2_DrawHLine(&u8g2, (uint16_t)(state_x + state_w + 5u), 35u, 8u);
+            state_x = HOME_STATUS_LEFT;
+            station_x = (uint16_t)(HOME_STATUS_RIGHT - station_w);
+            machine_left = (uint16_t)(state_x + state_w + HOME_STATUS_MIN_GAP);
+            machine_right = (uint16_t)(station_x - HOME_STATUS_MIN_GAP);
+            machine_x = (uint16_t)(machine_left + (machine_right - machine_left - machine_w) / 2u);
 
             sprintf(buf, "状态：%s", state);
-            ui_main_meta_draw(state_x, 39u, buf);
+            ui_main_meta_draw(state_x, HOME_STATUS_BASELINE, buf);
             sprintf(buf, "本机号：%d-->%s", pData->UI_main.host_num, send_str);
-            ui_main_meta_draw(machine_x, 39u, buf);
+            ui_main_meta_draw(machine_x, HOME_STATUS_BASELINE, buf);
             sprintf(buf, "分站：%d", pData->UI_main.sub_num);
-            ui_main_meta_draw(station_x, 39u, buf);
+            ui_main_meta_draw(station_x, HOME_STATUS_BASELINE, buf);
         }
 
-        /* 状态栏下沿与左右切角连接线：第 2 页不显示这排状态信息，装饰线一并取消。 */
-        u8g2_DrawHLine(&u8g2, 9u, 42u, 366u);
-        u8g2_DrawLine(&u8g2, 1u, 34u, 9u, 42u);
-        u8g2_DrawLine(&u8g2, 382u, 34u, 374u, 42u);
+        /* 仅保留数据区上沿的一条分隔线；左右双框本身已清楚区分两列。 */
+        u8g2_DrawHLine(&u8g2, HOME_STATUS_DIVIDER_X, HOME_STATUS_DIVIDER_Y,
+                       HOME_STATUS_DIVIDER_W);
     }
 
-    /* ---------- 左右数据框与中央分隔线 ---------- */
+    /* ---------- 两页共用同一位置的左右数据框 ---------- */
     ui_main_cut_frame(7u, HOME_GRID_TOP, 181u, 98u, 6u);
     ui_main_cut_frame(196u, HOME_GRID_TOP, 181u, 98u, 6u);
 
@@ -679,10 +700,6 @@ void UI_Main_Display(data_LIST *pData)
         u8g2_DrawHLine(&u8g2, 7u, line_y, 181u);
         u8g2_DrawHLine(&u8g2, 196u, line_y, 181u);
     }
-    /* 第 1 页中央分隔线接状态栏下沿；第 2 页与数据框上沿对齐，不留悬空线段。 */
-    u8g2_DrawVLine(&u8g2, HOME_COL_SPLIT_X, (uint8_t)((page == 1u) ? 43u : HOME_GRID_TOP),
-                   (uint8_t)((page == 1u) ? 101u : 98u));
-
     /* ---------- 通道网格：分页、类型、值和单位处理保持原样 ---------- */
     first = (uint8_t)((page == 1u) ? 0u : 10u);
 
@@ -729,19 +746,24 @@ void UI_Main_Display(data_LIST *pData)
     /* ---------- 第 2 页专属：底部三段统计栏：与参考图一致用冒号和竖线分隔 ---------- */
     if (page == 2u)
     {
-        ui_main_cut_frame(6u, 147u, 372u, 17u, 4u);
-        u8g2_DrawVLine(&u8g2, 132u, 150u, 11u);
-        u8g2_DrawVLine(&u8g2, 250u, 150u, 11u);
+        ui_main_cut_frame(HOME_STATS_X, HOME_STATS_Y, HOME_STATS_W, HOME_STATS_H, 4u);
+        u8g2_DrawVLine(&u8g2, HOME_STATS_DIVIDER_1, HOME_STATS_DIVIDER_Y,
+                       HOME_STATS_DIVIDER_H);
+        u8g2_DrawVLine(&u8g2, HOME_STATS_DIVIDER_2, HOME_STATS_DIVIDER_Y,
+                       HOME_STATS_DIVIDER_H);
 
         sprintf(buf, "已绑定: %d", g_binding_count);
         w = (uint16_t)u8g2_GetUTF8Width(&u8g2, buf);
-        ui_draw((uint16_t)(7u + (125u - w) / 2u), 161u, buf);
+        ui_draw((uint16_t)(HOME_STATS_COL1_X + (HOME_STATS_COL1_W - w) / 2u),
+                HOME_STATS_BASELINE, buf);
         sprintf(buf, "已用通道: %d", count_used_channels());
         w = (uint16_t)u8g2_GetUTF8Width(&u8g2, buf);
-        ui_draw((uint16_t)(133u + (116u - w) / 2u), 161u, buf);
+        ui_draw((uint16_t)(HOME_STATS_COL2_X + (HOME_STATS_COL2_W - w) / 2u),
+                HOME_STATS_BASELINE, buf);
         sprintf(buf, "报警: %d", (int)(g_name_err_count + g_volt_err_count));
         w = (uint16_t)u8g2_GetUTF8Width(&u8g2, buf);
-        ui_draw((uint16_t)(250u + (126u - w) / 2u), 161u, buf);
+        ui_draw((uint16_t)(HOME_STATS_COL3_X + (HOME_STATS_COL3_W - w) / 2u),
+                HOME_STATS_BASELINE, buf);
     }
     u8g2_SetBitmapMode(&u8g2, bitmap_mode);
 }

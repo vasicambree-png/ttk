@@ -14,7 +14,7 @@ MSVC 默认环境脚本是当前机器已有的 `D:\visual studio\visual studio2
 
 结果统一写到忽略的 `output/`：
 
-- `after/home_example.png`、`after/home_example_4x.png`：参考图示例数据和整数倍放大。
+- `after/home_example.png`、`after/home_example_4x.png`：第 1 页参考示例数据和整数倍放大；`after/home_page1_3x.png`、`after/home_page2_3x.png`：两页正常数据的 3 倍最近邻预览。
 - `before/`、`after/`：各用例图片、实际绘制日志、逐用例检查、编译日志和中间文件。
 - `report.md`、`report.json`：缺字、屏幕边界、输入/通道/绑定数据不改写、连续刷新/独立重画一致性，以及保留菜单和提示页的前后逐像素对比。
 

@@ -572,6 +572,15 @@ int main(int argc, char **argv) {
         snprintf(name, sizeof(name), "home_send_%u", addresses[m]);
         render_home(name, 1);
     }
+    Data_list1.UI_main.send_host_num = UINT16_MAX;
+    render_home("home_send_numeric_max", 1);
+    Data_list1.UI_main.host_num = 0;
+    render_home("home_host_zero", 1);
+    Data_list1.UI_main.host_num = UINT16_MAX;
+    render_home("home_host_max", 1);
+    Data_list1.UI_main.host_num = 41;
+    Data_list1.UI_main.sub_num = UINT16_MAX;
+    render_home("home_sub_max", 1);
     Data_list1.UI_main.state = 0;
     render_home("home_state_off", 1);
     init_data(1);
