@@ -30,7 +30,33 @@ static int text_active, text_left, text_top, text_right, text_bottom;
 static unsigned text_points;
 static unsigned missing_total, boundary_total, mutation_total, redraw_total, cases_total;
 static unsigned bitmap_state_total;
+static unsigned region_violation_total, badge_violation_total;
+static unsigned home_page_expect;   /* 0 = 不做主页分页契约检查，1/2 = 期望的主页页码 */
+static unsigned home_p1_status_min_ink = 0xffffffffu, home_p1_stats_max_ink;
+static unsigned home_p2_status_max_ink, home_p2_stats_min_ink = 0xffffffffu;
+static unsigned badge_count;
+static char badge_text[32][4];
 static FILE *draw_log, *case_log;
+
+/* 主页分页契约检查区域（像素坐标，含边界）。
+ *   状态行带：第 1 页必须有墨迹，第 2 页必须全白；
+ *   底部统计栏带：第 2 页必须有墨迹，第 1 页必须全白。
+ * x 起点避开左侧品牌 Logo（x=9..80），终点避开双层外框与切角连接线。 */
+#define HOME_STATUS_REGION_X0  83u
+#define HOME_STATUS_REGION_Y0  29u
+#define HOME_STATUS_REGION_X1 371u
+#define HOME_STATUS_REGION_Y1  45u
+#define HOME_STATS_REGION_X0   13u
+#define HOME_STATS_REGION_Y0  147u
+#define HOME_STATS_REGION_X1  370u
+#define HOME_STATS_REGION_Y1  162u
+
+static unsigned ink_in_region(unsigned x0, unsigned y0, unsigned x1, unsigned y1) {
+    unsigned x, y, n = 0;
+    for (y = y0; y <= y1; ++y)
+        for (x = x0; x <= x1; ++x) n += pixels[y][x] ? 1u : 0u;
+    return n;
+}
 
 uint8_t count_used_channels(void) {
     uint8_t i, n = 0;
@@ -120,6 +146,13 @@ u8g2_uint_t u8g2_DrawUTF8(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, const char *s
     uint16_t e;
     char miss[512] = "", tmp[16];
     u8g2_uint_t w = u8g2_GetUTF8Width(u, s), advance;
+    if (home_page_expect && u->font == u8g2_font_helvB10_tr) {
+        /* 主页只有切角通道号用 helvB10 画纯数字，据此收集本页通道号集合。 */
+        unsigned k, digits = 1;
+        for (k = 0; s[k]; ++k) if (s[k] < '0' || s[k] > '9') { digits = 0; break; }
+        if (digits && k > 0 && k < 4 && badge_count < sizeof(badge_text) / sizeof(badge_text[0]))
+            strcpy(badge_text[badge_count++], s);
+    }
     for (i = 0; s[i]; ++i) {
         e = u8x8_utf8_next(&utf, (uint8_t)s[i]);
         if (e < 0xfffe && !u8g2_IsGlyph(u, e)) {
@@ -195,12 +228,16 @@ static void checked_draw(void) {
         fprintf(draw_log, "SOURCE_DATA_CHANGED\t%s\t%s\n", case_name, draw_pass);
     }
 }
+
+static void check_home_contract(unsigned page);
+
 static void render(const char *name, unsigned rank, unsigned menu, unsigned re, unsigned selected, unsigned page) {
     static uint8_t primary[SCREEN_HEIGHT][SCREEN_WIDTH];
     uint8_t bitmap_input = u8g2.bitmap_transparency;
     unsigned missing_before = missing_total, boundary_before = boundary_total;
     unsigned mutation_before = mutation_total, redraw_before = redraw_total;
     unsigned bitmap_before = bitmap_state_total;
+    unsigned region_before = region_violation_total + badge_violation_total;
     case_name = name;
     Data_list1.menu_rank = (uint8_t)rank;
     Data_list1.rank2_addr = (uint8_t)menu;
@@ -209,9 +246,11 @@ static void render(const char *name, unsigned rank, unsigned menu, unsigned re, 
     Data_list1.UI_main.chu_num1 = (uint16_t)page;
     Data_list1.UI_main.chu_num2 = (uint16_t)page;
     draw_pass = "primary";
+    badge_count = 0;
     checked_draw();
     memcpy(primary, pixels, sizeof(primary));
     save_pixels(name);
+    if (home_page_expect) check_home_contract(home_page_expect);
     draw_pass = "continuous";
     checked_draw();
     if (memcmp(primary, pixels, sizeof(primary))) ++redraw_total;
@@ -220,12 +259,55 @@ static void render(const char *name, unsigned rank, unsigned menu, unsigned re, 
     draw_pass = "independent";
     checked_draw();
     if (memcmp(primary, pixels, sizeof(primary))) ++redraw_total;
-    fprintf(case_log, "%s\t%u\t%u\t%u\t%u\t%u\t%u\t%u\t%u\t%u\t%u\n",
+    fprintf(case_log, "%s\t%u\t%u\t%u\t%u\t%u\t%u\t%u\t%u\t%u\t%u\t%u\n",
             name, rank, menu, re, selected, page,
             missing_total - missing_before, boundary_total - boundary_before,
             mutation_total - mutation_before, redraw_total - redraw_before,
-            bitmap_state_total - bitmap_before);
+            bitmap_state_total - bitmap_before,
+            region_violation_total + badge_violation_total - region_before);
     ++cases_total;
+}
+
+/* 主页分页契约：第 1 页有状态行、无底部统计栏；第 2 页无状态行、有底部统计栏；
+ * 通道号只允许本页的 1..10 或 11..20。 */
+static void check_home_contract(unsigned page) {
+    unsigned i, j, ok = 1;
+    unsigned first_ch = (page == 2u) ? 11u : 1u;
+    unsigned status_ink = ink_in_region(HOME_STATUS_REGION_X0, HOME_STATUS_REGION_Y0,
+                                        HOME_STATUS_REGION_X1, HOME_STATUS_REGION_Y1);
+    unsigned stats_ink = ink_in_region(HOME_STATS_REGION_X0, HOME_STATS_REGION_Y0,
+                                       HOME_STATS_REGION_X1, HOME_STATS_REGION_Y1);
+
+    for (i = 0; i < 10u; ++i) {
+        char want[4];
+        sprintf(want, "%u", first_ch + i);
+        for (j = 0; j < badge_count; ++j) if (!strcmp(badge_text[j], want)) break;
+        if (j == badge_count) ok = 0;
+    }
+    for (j = 0; j < badge_count; ++j) {
+        unsigned value = (unsigned)atoi(badge_text[j]);
+        if (page == 1u ? (value < 1u || value > 10u) : (value < 11u || value > 20u)) ok = 0;
+    }
+    if (!ok) {
+        ++badge_violation_total;
+        fprintf(draw_log, "HOME_CHANNEL_SET\t%s\t%u\t%u\n", case_name, page, badge_count);
+    }
+    if (page == 1u) {
+        if (status_ink < home_p1_status_min_ink) home_p1_status_min_ink = status_ink;
+        if (stats_ink > home_p1_stats_max_ink) home_p1_stats_max_ink = stats_ink;
+        if (!status_ink || stats_ink) ++region_violation_total;
+    } else {
+        if (status_ink > home_p2_status_max_ink) home_p2_status_max_ink = status_ink;
+        if (stats_ink < home_p2_stats_min_ink) home_p2_stats_min_ink = stats_ink;
+        if (status_ink || !stats_ink) ++region_violation_total;
+    }
+    fprintf(draw_log, "HOME_REGIONS\t%s\t%u\t%u\t%u\n", case_name, page, status_ink, stats_ink);
+}
+
+static void render_home(const char *name, unsigned page) {
+    home_page_expect = page;
+    render(name, 1, 0, 0, 0, page);
+    home_page_expect = 0;
 }
 
 static void init_data(int maximum) {
@@ -473,39 +555,39 @@ int main(int argc, char **argv) {
     if (!draw_log || !case_log) return 2;
     if (strcmp(scope, "home") && strcmp(scope, "menus")) return 2;
     endpoint_failures = check_white_text_bounds();
-    fprintf(case_log, "case\trank\tmenu\tsubpage\tselected\tpage\tmissing_glyphs\tboundary_events\tdata_mutations\tredraw_mismatches\tbitmap_state_changes\n");
+    fprintf(case_log, "case\trank\tmenu\tsubpage\tselected\tpage\tmissing_glyphs\tboundary_events\tdata_mutations\tredraw_mismatches\tbitmap_state_changes\tregion_violations\n");
     init_data(0);
     /* Screenshot example: ten active channels; the second page is tested separately. */
     memset(CH_com_buf + 10, 0, sizeof(CH_com_buf[0]) * 10);
-    render("home_example", 1, 0, 0, 0, 1);
+    render_home("home_example", 1);
     init_data(0);
-    render("home_page2", 1, 0, 0, 0, 2);
+    render_home("home_page2", 2);
     u8g2_SetBitmapMode(&u8g2, 1);
-    render("home_bitmap_mode_1", 1, 0, 0, 0, 1);
+    render_home("home_bitmap_mode_1", 1);
     u8g2_SetBitmapMode(&u8g2, 0);
-    render("home_bitmap_mode_0", 1, 0, 0, 0, 1);
+    render_home("home_bitmap_mode_0", 1);
     for (m = 0; m < 3; ++m) {
         static const uint16_t addresses[] = {0, 121, 122};
         Data_list1.UI_main.send_host_num = addresses[m];
         snprintf(name, sizeof(name), "home_send_%u", addresses[m]);
-        render(name, 1, 0, 0, 0, 1);
+        render_home(name, 1);
     }
     Data_list1.UI_main.state = 0;
-    render("home_state_off", 1, 0, 0, 0, 1);
+    render_home("home_state_off", 1);
     init_data(1);
-    render("home_uint16_max", 1, 0, 0, 0, 1);
-    render("home_page2_uint16_max", 1, 0, 0, 0, 2);
+    render_home("home_uint16_max", 1);
+    render_home("home_page2_uint16_max", 2);
     CH_com_buf[4].CH_data = (uint16_t)(int16_t)32767;
-    render("home_tilt_positive_max", 1, 0, 0, 0, 1);
+    render_home("home_tilt_positive_max", 1);
     memset(CH_com_buf, 0, sizeof(CH_com_buf));
     g_binding_count = g_name_err_count = g_volt_err_count = 0;
-    render("home_empty", 1, 0, 0, 0, 1);
-    render("home_page2_empty", 1, 0, 0, 0, 2);
+    render_home("home_empty", 1);
+    render_home("home_page2_empty", 2);
     init_data(0);
     CH_com_buf[0].Type = TPYE_NONE;
     CH_com_buf[1].Type = TPYE_END;
     CH_com_buf[2].valid = 0;
-    render("home_invalid_types", 1, 0, 0, 0, 1);
+    render_home("home_invalid_types", 1);
     init_data(0);
     for (m = 0; m < 8; ++m) {
         snprintf(name, sizeof(name), "menu_%u", m);
@@ -541,12 +623,15 @@ int main(int argc, char **argv) {
     fclose(case_log);
     summary = fopen("summary.json", "wb");
     if (!summary) return 2;
-    fprintf(summary, "{\n  \"preview_scope\": \"%s\",\n  \"cases\": %u,\n  \"missing_glyph_occurrences\": %u,\n  \"boundary_events\": %u,\n  \"data_mutations\": %u,\n  \"redraw_mismatches\": %u,\n  \"bitmap_state_changes\": %u,\n  \"white_text_boundary_probe_failures\": %u,\n  \"text_bounds_include_draw_color_zero\": true\n}\n",
+    fprintf(summary, "{\n  \"preview_scope\": \"%s\",\n  \"cases\": %u,\n  \"missing_glyph_occurrences\": %u,\n  \"boundary_events\": %u,\n  \"data_mutations\": %u,\n  \"redraw_mismatches\": %u,\n  \"bitmap_state_changes\": %u,\n  \"home_contract_violations\": %u,\n  \"home_page1_status_region_min_ink\": %u,\n  \"home_page1_stats_region_max_ink\": %u,\n  \"home_page2_status_region_max_ink\": %u,\n  \"home_page2_stats_region_min_ink\": %u,\n  \"white_text_boundary_probe_failures\": %u,\n  \"text_bounds_include_draw_color_zero\": true\n}\n",
             scope, cases_total, missing_total, boundary_total, mutation_total, redraw_total,
-            bitmap_state_total, endpoint_failures);
+            bitmap_state_total, region_violation_total + badge_violation_total,
+            home_p1_status_min_ink, home_p1_stats_max_ink, home_p2_status_max_ink,
+            home_p2_stats_min_ink, endpoint_failures);
     fclose(summary);
     printf("cases=%u missing=%u boundary_events=%u data_mutations=%u redraw_mismatches=%u\n",
            cases_total, missing_total, boundary_total, mutation_total, redraw_total);
     return (missing_total || boundary_total || mutation_total || redraw_total ||
-            bitmap_state_total || endpoint_failures) ? 1 : 0;
+            bitmap_state_total || region_violation_total || badge_violation_total ||
+            endpoint_failures) ? 1 : 0;
 }

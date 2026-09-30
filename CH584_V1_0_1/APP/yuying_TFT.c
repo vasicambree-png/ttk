@@ -607,6 +607,10 @@ void UI_Main_Display(data_LIST *pData)
     u8g2_SetFontMode(&u8g2, 1);
     u8g2_SetFont(&u8g2, UI_FONT_CN);          /* 中文全字库，见文件顶部说明 */
 
+    /* 分页在状态行与底部统计栏之前确定：第 1 页显示状态/本机号/分站，
+     * 第 2 页显示底部统计栏；分页依据仍是 0x01 帧的 chu_num1。 */
+    page = (pData->UI_main.chu_num1 == 2u) ? 2u : 1u;
+
     /* ---------- 双层切角外框、左侧品牌区与中部标题牌 ---------- */
     u8g2_SetBitmapMode(&u8g2, 1);
     ui_main_cut_frame(1u, 1u, 382u, 166u, 10u);
@@ -625,42 +629,47 @@ void UI_Main_Display(data_LIST *pData)
     ui_draw((uint16_t)(372u - w), 20u, buf);
     u8g2_SetFont(&u8g2, UI_FONT_CN);
 
-    /* ---------- 状态、本机号和分站号：只重排显示，不改字段来源 ---------- */
-    if (pData->UI_main.send_host_num == 122)      sprintf(send_str, "分站");
-    else if (pData->UI_main.send_host_num == 121) sprintf(send_str, "无");
-    else if (pData->UI_main.send_host_num == 0)   sprintf(send_str, "中继");
-    else                                          sprintf(send_str, "%d", pData->UI_main.send_host_num);
-
+    /* ---------- 第 1 页专属：状态、本机号和分站号：只重排显示，不改字段来源 ---------- */
+    if (page == 1u)
     {
-        uint16_t state_w, machine_w, station_w, state_x, machine_x, station_x;
-        const char *state = (pData->UI_main.state == 1) ? "开机" : "关机";
+        if (pData->UI_main.send_host_num == 122u)      sprintf(send_str, "分站");
+        else if (pData->UI_main.send_host_num == 121u) sprintf(send_str, "无");
+        else if (pData->UI_main.send_host_num == 0u)   sprintf(send_str, "中继");
+        else                                           sprintf(send_str, "%d", pData->UI_main.send_host_num);
 
-        sprintf(buf, "状态：%s", state);
-        state_w = ui_main_meta_width(buf);
-        sprintf(buf, "本机号：%d-->%s", pData->UI_main.host_num, send_str);
-        machine_w = ui_main_meta_width(buf);
-        sprintf(buf, "分站：%d", pData->UI_main.sub_num);
-        station_w = ui_main_meta_width(buf);
-        station_x = (uint16_t)(374u - station_w);
-        machine_x = (uint16_t)(station_x - 12u - machine_w);
-        state_x = (uint16_t)(machine_x - 18u - state_w);
+        {
+            uint16_t state_w, machine_w, station_w, state_x, machine_x, station_x;
+            const char *state = (pData->UI_main.state == 1) ? "开机" : "关机";
 
-        if (state_x > 94u)
-            u8g2_DrawHLine(&u8g2, (uint16_t)(state_x - 29u), 35u, 23u);
-        u8g2_DrawHLine(&u8g2, (uint16_t)(state_x + state_w + 5u), 35u, 8u);
+            sprintf(buf, "状态：%s", state);
+            state_w = ui_main_meta_width(buf);
+            sprintf(buf, "本机号：%d-->%s", pData->UI_main.host_num, send_str);
+            machine_w = ui_main_meta_width(buf);
+            sprintf(buf, "分站：%d", pData->UI_main.sub_num);
+            station_w = ui_main_meta_width(buf);
+            station_x = (uint16_t)(374u - station_w);
+            machine_x = (uint16_t)(station_x - 12u - machine_w);
+            state_x = (uint16_t)(machine_x - 18u - state_w);
 
-        sprintf(buf, "状态：%s", state);
-        ui_main_meta_draw(state_x, 39u, buf);
-        sprintf(buf, "本机号：%d-->%s", pData->UI_main.host_num, send_str);
-        ui_main_meta_draw(machine_x, 39u, buf);
-        sprintf(buf, "分站：%d", pData->UI_main.sub_num);
-        ui_main_meta_draw(station_x, 39u, buf);
+            if (state_x > 94u)
+                u8g2_DrawHLine(&u8g2, (uint16_t)(state_x - 29u), 35u, 23u);
+            u8g2_DrawHLine(&u8g2, (uint16_t)(state_x + state_w + 5u), 35u, 8u);
+
+            sprintf(buf, "状态：%s", state);
+            ui_main_meta_draw(state_x, 39u, buf);
+            sprintf(buf, "本机号：%d-->%s", pData->UI_main.host_num, send_str);
+            ui_main_meta_draw(machine_x, 39u, buf);
+            sprintf(buf, "分站：%d", pData->UI_main.sub_num);
+            ui_main_meta_draw(station_x, 39u, buf);
+        }
+
+        /* 状态栏下沿与左右切角连接线：第 2 页不显示这排状态信息，装饰线一并取消。 */
+        u8g2_DrawHLine(&u8g2, 9u, 42u, 366u);
+        u8g2_DrawLine(&u8g2, 1u, 34u, 9u, 42u);
+        u8g2_DrawLine(&u8g2, 382u, 34u, 374u, 42u);
     }
 
-    /* ---------- 状态栏下沿、左右数据框与中央分隔线 ---------- */
-    u8g2_DrawHLine(&u8g2, 9u, 42u, 366u);
-    u8g2_DrawLine(&u8g2, 1u, 34u, 9u, 42u);
-    u8g2_DrawLine(&u8g2, 382u, 34u, 374u, 42u);
+    /* ---------- 左右数据框与中央分隔线 ---------- */
     ui_main_cut_frame(7u, HOME_GRID_TOP, 181u, 98u, 6u);
     ui_main_cut_frame(196u, HOME_GRID_TOP, 181u, 98u, 6u);
 
@@ -670,11 +679,12 @@ void UI_Main_Display(data_LIST *pData)
         u8g2_DrawHLine(&u8g2, 7u, line_y, 181u);
         u8g2_DrawHLine(&u8g2, 196u, line_y, 181u);
     }
-    u8g2_DrawVLine(&u8g2, HOME_COL_SPLIT_X, 43u, 101u);
+    /* 第 1 页中央分隔线接状态栏下沿；第 2 页与数据框上沿对齐，不留悬空线段。 */
+    u8g2_DrawVLine(&u8g2, HOME_COL_SPLIT_X, (uint8_t)((page == 1u) ? 43u : HOME_GRID_TOP),
+                   (uint8_t)((page == 1u) ? 101u : 98u));
 
     /* ---------- 通道网格：分页、类型、值和单位处理保持原样 ---------- */
-    page  = (pData->UI_main.chu_num1 == 2) ? 2 : 1;
-    first = (uint8_t)((page == 1) ? 0 : 10);
+    first = (uint8_t)((page == 1u) ? 0u : 10u);
 
     for (i = 0; i < 10; i++)
     {
@@ -716,20 +726,23 @@ void UI_Main_Display(data_LIST *pData)
         }
     }
 
-    /* ---------- 底部三段统计栏：与参考图一致用冒号和竖线分隔 ---------- */
-    ui_main_cut_frame(6u, 147u, 372u, 17u, 4u);
-    u8g2_DrawVLine(&u8g2, 132u, 150u, 11u);
-    u8g2_DrawVLine(&u8g2, 250u, 150u, 11u);
+    /* ---------- 第 2 页专属：底部三段统计栏：与参考图一致用冒号和竖线分隔 ---------- */
+    if (page == 2u)
+    {
+        ui_main_cut_frame(6u, 147u, 372u, 17u, 4u);
+        u8g2_DrawVLine(&u8g2, 132u, 150u, 11u);
+        u8g2_DrawVLine(&u8g2, 250u, 150u, 11u);
 
-    sprintf(buf, "已绑定: %d", g_binding_count);
-    w = (uint16_t)u8g2_GetUTF8Width(&u8g2, buf);
-    ui_draw((uint16_t)(7u + (125u - w) / 2u), 161u, buf);
-    sprintf(buf, "已用通道: %d", count_used_channels());
-    w = (uint16_t)u8g2_GetUTF8Width(&u8g2, buf);
-    ui_draw((uint16_t)(133u + (116u - w) / 2u), 161u, buf);
-    sprintf(buf, "报警: %d", (int)(g_name_err_count + g_volt_err_count));
-    w = (uint16_t)u8g2_GetUTF8Width(&u8g2, buf);
-    ui_draw((uint16_t)(250u + (126u - w) / 2u), 161u, buf);
+        sprintf(buf, "已绑定: %d", g_binding_count);
+        w = (uint16_t)u8g2_GetUTF8Width(&u8g2, buf);
+        ui_draw((uint16_t)(7u + (125u - w) / 2u), 161u, buf);
+        sprintf(buf, "已用通道: %d", count_used_channels());
+        w = (uint16_t)u8g2_GetUTF8Width(&u8g2, buf);
+        ui_draw((uint16_t)(133u + (116u - w) / 2u), 161u, buf);
+        sprintf(buf, "报警: %d", (int)(g_name_err_count + g_volt_err_count));
+        w = (uint16_t)u8g2_GetUTF8Width(&u8g2, buf);
+        ui_draw((uint16_t)(250u + (126u - w) / 2u), 161u, buf);
+    }
     u8g2_SetBitmapMode(&u8g2, bitmap_mode);
 }
 

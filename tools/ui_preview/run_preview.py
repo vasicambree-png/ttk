@@ -62,7 +62,8 @@ def report(phases: list[str], output: Path, scope: str) -> dict:
             cases = list(csv.DictReader(stream, delimiter="\t"))
         case_names[phase] = {case["case"] for case in cases}
         findings = [case for case in cases if any(int(case.get(key, 0)) for key in
-                    ("missing_glyphs", "boundary_events", "data_mutations", "redraw_mismatches", "bitmap_state_changes"))]
+                    ("missing_glyphs", "boundary_events", "data_mutations", "redraw_mismatches",
+                     "bitmap_state_changes", "region_violations"))]
         for name in sorted(case_names[phase]):
             path = out / (name + ".pgm")
             pgm_to_png(path)
@@ -105,9 +106,9 @@ def report(phases: list[str], output: Path, scope: str) -> dict:
     (output / "report.json").write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     lines = ["# UI 离线验证", "", "使用完整当前 UI 翻译单元、工程实际字体/UTF-8 解码/位图及几何绘制算法，外设端点为空操作。", "",
              f"范围：`{scope}`；输出目录：`{output}`。", "",
-             "| 阶段 | 用例 | 缺字 | 越界事件 | 数据改写 | 重画像素不一致 | 位图模式未恢复 |", "| --- | ---: | ---: | ---: | ---: | ---: | ---: |"]
+             "| 阶段 | 用例 | 缺字 | 越界事件 | 数据改写 | 重画像素不一致 | 位图模式未恢复 | 主页分页契约违规 |", "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"]
     for phase, data in results.items():
-        lines.append(f"| {phase} | {data['cases']} | {data['missing_glyph_occurrences']} | {data['boundary_events']} | {data['data_mutations']} | {data['redraw_mismatches']} | {data.get('bitmap_state_changes', 0)} |")
+        lines.append(f"| {phase} | {data['cases']} | {data['missing_glyph_occurrences']} | {data['boundary_events']} | {data['data_mutations']} | {data['redraw_mismatches']} | {data.get('bitmap_state_changes', 0)} | {data.get('home_contract_violations', 0)} |")
     lines.append("")
     for phase, data in results.items():
         lines.append(f"宿主编译 {phase}：警告 {data['host_compiler_warnings']}，错误 {data['host_compiler_errors']}；完整记录见该阶段 `compile.log`。")
@@ -115,6 +116,7 @@ def report(phases: list[str], output: Path, scope: str) -> dict:
     lines += ["", f"{retained_label}逐像素对比：{len(comparisons)} 个用例，" +
               ("全部相同。" if comparisons and result["retained_pages_pixel_identical"] else "有变化或尚未运行完整对比。"), "",
               "主页用例包括参考图数值、页 2、空通道、无效类型、uint16 极值、倾角正负极值、关机状态和发送地址 0/121/122。每个用例检查三次绘制：初次、连续刷新、重新初始化离线绘图上下文。", "",
+              "主页分页契约检查：第 1 页状态行区域必须有墨迹、底部统计栏区域必须全白；第 2 页状态行区域必须全白、底部统计栏区域必须有墨迹；切角通道号只允许出现本页的 1..10 或 11..20。逐用例结果见 `cases.tsv` 的 `region_violations` 列和 `draws.tsv` 的 `HOME_REGIONS` 记录。", "",
               "每次绘制前后比较页面输入、20 通道、绑定表、扫描缓存、绑定数量、告警数量、名称检查计数和当前消息码。所有页面检查绘图前后的位图透明模式。", "",
               "文字边界统计包含 draw_color=0 的反白文字；不因像素最终为白色而跳过。宿主启动时用真实字库验证右侧越界及整体位于屏幕左侧的反白文字都能被检出。", "",
               "输出：原生分辨率 PNG、" + ("每个用例的 `*_3x.png`。" if scope == "menus" else "`after/home_example_4x.png`。") + "放大均为整数倍最近邻；另有 `draws.tsv`、`cases.tsv` 和 `report.json`。", "",
@@ -167,7 +169,7 @@ def main() -> int:
     print(f"Retained pages identical: {result['retained_pages_pixel_identical']}")
     print("Report:", output / "report.md")
     after = result["phases"].get("after", {})
-    return int(any(after.get(key, 0) for key in ("missing_glyph_occurrences", "boundary_events", "data_mutations", "redraw_mismatches", "bitmap_state_changes", "white_text_boundary_probe_failures")) or
+    return int(any(after.get(key, 0) for key in ("missing_glyph_occurrences", "boundary_events", "data_mutations", "redraw_mismatches", "bitmap_state_changes", "home_contract_violations", "white_text_boundary_probe_failures")) or
                any(not group["pixel_identical"] for group in result["equivalent_page_comparisons"] if group["phase"] == "after") or
                result["retained_pages_pixel_identical"] is False)
 
