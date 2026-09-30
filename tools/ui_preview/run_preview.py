@@ -42,6 +42,8 @@ def pgm_to_png(path: Path, scale: int = 1, destination: Path | None = None) -> P
 
 
 def retained_case(name: str, scope: str = "home") -> bool:
+    if scope == "unified":
+        return False  # This task intentionally changes text on all pages.
     if scope == "menus":
         return (name.startswith(("home_", "message_", "save_message_tick")) or
                 name in {"power_off_message_tick10", "restart_confirmation"})
@@ -67,11 +69,11 @@ def report(phases: list[str], output: Path, scope: str) -> dict:
         for name in sorted(case_names[phase]):
             path = out / (name + ".pgm")
             pgm_to_png(path)
-            if scope == "menus":
+            if scope in ("menus", "unified"):
                 pgm_to_png(path, 3)
         if scope == "home":
             pgm_to_png(out / "home_example.pgm", 4)
-        if scope == "menus":
+        if scope in ("menus", "unified"):
             for prefix in ("menu_names_page_", "menu_signal_page_", "menu_voltage_page_"):
                 group = sorted(name for name in case_names[phase] if name.startswith(prefix))
                 if len(group) > 1:
@@ -116,13 +118,13 @@ def report(phases: list[str], output: Path, scope: str) -> dict:
     lines += ["", f"{retained_label}逐像素对比：{len(comparisons)} 个用例，" +
               ("全部相同。" if comparisons and result["retained_pages_pixel_identical"] else "有变化或尚未运行完整对比。"), "",
               "主页用例包括两页正常/空通道/uint16 极值、host_num=0、普通最大发送地址、sub_num 最大值、倾角极值、开关机状态和发送地址 0/121/122。每个用例检查三次绘制：初次、连续刷新、重新初始化离线绘图上下文。", "",
-              "主页分页契约检查：第 1 页状态行区域必须有墨迹、底部统计栏区域必须全白；第 2 页状态行区域必须全白、底部统计栏区域必须有墨迹；切角通道号只允许出现本页的 1..10 或 11..20。逐用例结果见 `cases.tsv` 的 `region_violations` 列和 `draws.tsv` 的 `HOME_REGIONS` 记录。", "",
+              "主页分页契约检查：第 1 页显示状态行，通道数据延伸到底部且无统计文字；第 2 页状态区域留白、底部统计栏显示三项文字；切角通道号只允许出现本页的 1..10 或 11..20。逐用例结果见 `cases.tsv` 的 `region_violations` 列和 `draws.tsv` 的 `HOME_REGIONS` 记录。", "",
               "每次绘制前后比较页面输入、20 通道、绑定表、扫描缓存、绑定数量、告警数量、名称检查计数和当前消息码。所有页面检查绘图前后的位图透明模式。", "",
               "文字边界统计包含 draw_color=0 的反白文字；不因像素最终为白色而跳过。宿主启动时用真实字库验证右侧越界及整体位于屏幕左侧的反白文字都能被检出。", "",
-              "输出：原生分辨率 PNG、" + ("每个用例的 `*_3x.png`。" if scope == "menus" else "`after/home_example_4x.png` 及两页正常画面的 `home_page1_3x.png` / `home_page2_3x.png`。") + "放大均为整数倍最近邻；另有 `draws.tsv`、`cases.tsv` 和 `report.json`。", "",
+              "输出：原生分辨率 PNG、" + ("每个用例的 `*_3x.png`。" if scope in ("menus", "unified") else "`after/home_example_4x.png` 及两页正常画面的 `home_page1_3x.png` / `home_page2_3x.png`。") + "放大均为整数倍最近邻；另有 `draws.tsv`、`cases.tsv` 和 `report.json`。", "",
               "本工具不验证 UART/BLE/Flash/刷新调度或实物显示；这些需要相应构建、联机或硬件检查。", ""]
-    if scope == "menus":
-        lines += ["菜单范围允许二三级菜单视觉变化，要求所有 home_*、message_*、save_message_tick*、power_off_message_tick10 和 restart_confirmation 前后逐像素一致。", "",
+    if scope in ("menus", "unified"):
+        lines += [("统一字体范围允许全部页面文字变化，不要求旧字体逐像素一致；使用真实渲染、输入不改写、重绘一致性和文字布局检查。" if scope == "unified" else "菜单范围允许二三级菜单视觉变化，要求所有 home_*、message_*、save_message_tick*、power_off_message_tick10 和 restart_confirmation 前后逐像素一致。"), "",
                   "额外菜单用例覆盖所有合法焦点、子页按钮、0/32 个绑定、三条轮显的全部 11 页、29 字节最长名称、0/121/122/65535 上传地址、参数极值、RSSI -128/-1/0/127 和电压 0/0.9/1.0/9.9/10.0/25.5 V、20 通道空/稀疏/完整数据，以及交替页面。", "",
                   "名称、RSSI、电压全屏页分别以 chu_num2=0/1/2/65535 绘制；各组应相同，检查原有不分页语义。", ""]
         for group in equivalents:
@@ -153,7 +155,7 @@ def main() -> int:
     parser.add_argument("--phase", choices=("before", "after", "both"), default="both")
     parser.add_argument("--report-only", action="store_true")
     parser.add_argument("--output", help="Output subdirectory beneath this tool; defaults to output or menu_output by scope")
-    parser.add_argument("--scope", choices=("home", "menus"), default="home")
+    parser.add_argument("--scope", choices=("home", "menus", "unified"), default="home")
     parser.add_argument("--baseline-sha256", help="Require the frozen session source to have this SHA256")
     args = parser.parse_args()
     output = output_directory(args.output, args.scope)
@@ -175,8 +177,17 @@ def main() -> int:
         print(f"{phase}: {data['cases']} cases, missing={data['missing_glyph_occurrences']}, boundary={data['boundary_events']}, mutations={data['data_mutations']}, redraw={data['redraw_mismatches']}")
     print(f"Retained pages identical: {result['retained_pages_pixel_identical']}")
     print("Report:", output / "report.md")
+    contract_failures = False
+    if args.scope == "unified" and "after" in phases:
+        from check_unified_text import check
+        contracts = check(output)
+        contract_failures = bool(contracts["failures"])
+        result["text_layout_contracts"] = contracts
+        (output / "report.json").write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        with (output / "report.md").open("a", encoding="utf-8") as stream:
+            stream.write(f"\n统一文字布局检查：{contracts['checks']} 项，失败 {len(contracts['failures'])} 项。\n")
     after = result["phases"].get("after", {})
-    return int(any(after.get(key, 0) for key in ("missing_glyph_occurrences", "boundary_events", "data_mutations", "redraw_mismatches", "bitmap_state_changes", "home_contract_violations", "white_text_boundary_probe_failures")) or
+    return int(contract_failures or any(after.get(key, 0) for key in ("missing_glyph_occurrences", "boundary_events", "data_mutations", "redraw_mismatches", "bitmap_state_changes", "home_contract_violations", "white_text_boundary_probe_failures")) or
                any(not group["pixel_identical"] for group in result["equivalent_page_comparisons"] if group["phase"] == "after") or
                result["retained_pages_pixel_identical"] is False)
 

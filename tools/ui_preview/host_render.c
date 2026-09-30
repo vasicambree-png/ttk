@@ -34,7 +34,7 @@ static unsigned region_violation_total, badge_violation_total;
 static unsigned home_page_expect;   /* 0 = 不做主页分页契约检查，1/2 = 期望的主页页码 */
 static unsigned home_p1_status_min_ink = 0xffffffffu, home_p1_stats_max_ink;
 static unsigned home_p2_status_max_ink, home_p2_stats_min_ink = 0xffffffffu;
-static unsigned badge_count;
+static unsigned badge_count, home_state_count, home_stats_count;
 static char badge_text[32][4];
 static FILE *draw_log, *case_log;
 
@@ -177,6 +177,24 @@ u8g2_uint_t u8g2_DrawUTF8(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, const char *s
     return advance;
 }
 
+/* Observe the firmware's real bitmap font path, including missing characters. */
+void ui_preview_text(uint16_t x, uint16_t y, const char *text, uint8_t size, unsigned missing) {
+    fprintf(draw_log, "CUSTOM_TEXT\t%s\t%s\t%u\t%u\t%u\t%u\t%s\n",
+            case_name, draw_pass, x, y, size, missing, text);
+    missing_total += missing;
+    if (home_page_expect && !strcmp(draw_pass, "primary")) {
+        unsigned k, digits = 1;
+        for (k = 0; text[k]; ++k) if (text[k] < '0' || text[k] > '9') { digits = 0; break; }
+        if (digits && k && k < 4 && size == 11u &&
+            (x < 40u || (x >= 203u && x < 225u)) && y >= 60u && y <= 154u && badge_count < 32u)
+            strcpy(badge_text[badge_count++], text);
+        if (!strncmp(text, "状态：", strlen("状态："))) ++home_state_count;
+        if (!strncmp(text, "已绑定:", strlen("已绑定:")) ||
+            !strncmp(text, "已用通道:", strlen("已用通道:")) ||
+            !strncmp(text, "报警:", strlen("报警:"))) ++home_stats_count;
+    }
+}
+
 static void init_graphics(void) {
     memset(&u8g2, 0, sizeof(u8g2));
     u8g2.width = SCREEN_WIDTH;
@@ -246,7 +264,7 @@ static void render(const char *name, unsigned rank, unsigned menu, unsigned re, 
     Data_list1.UI_main.chu_num1 = (uint16_t)page;
     Data_list1.UI_main.chu_num2 = (uint16_t)page;
     draw_pass = "primary";
-    badge_count = 0;
+    badge_count = home_state_count = home_stats_count = 0;
     checked_draw();
     memcpy(primary, pixels, sizeof(primary));
     save_pixels(name);
@@ -268,13 +286,14 @@ static void render(const char *name, unsigned rank, unsigned menu, unsigned re, 
     ++cases_total;
 }
 
-/* 主页分页契约：第 1 页有状态行、无底部统计栏；第 2 页无状态行、有底部统计栏；
+/* 主页分页契约：第1页状态居中、数据延伸到底；第2页无状态行、有底部统计栏；
  * 通道号只允许本页的 1..10 或 11..20。 */
 static void check_home_contract(unsigned page) {
     unsigned i, j, ok = 1;
     unsigned first_ch = (page == 2u) ? 11u : 1u;
-    unsigned status_ink = ink_in_region(HOME_STATUS_REGION_X0, HOME_STATUS_REGION_Y0,
-                                        HOME_STATUS_REGION_X1, HOME_STATUS_REGION_Y1);
+    unsigned status_ink = page == 1u ? ink_in_region(14u, 43u, 374u, 60u) :
+        ink_in_region(HOME_STATUS_REGION_X0, HOME_STATUS_REGION_Y0,
+                      HOME_STATUS_REGION_X1, HOME_STATUS_REGION_Y1);
     unsigned stats_ink = ink_in_region(HOME_STATS_REGION_X0, HOME_STATS_REGION_Y0,
                                        HOME_STATS_REGION_X1, HOME_STATS_REGION_Y1);
 
@@ -295,11 +314,11 @@ static void check_home_contract(unsigned page) {
     if (page == 1u) {
         if (status_ink < home_p1_status_min_ink) home_p1_status_min_ink = status_ink;
         if (stats_ink > home_p1_stats_max_ink) home_p1_stats_max_ink = stats_ink;
-        if (!status_ink || stats_ink) ++region_violation_total;
+        if (home_state_count != 1u || home_stats_count) ++region_violation_total;
     } else {
         if (status_ink > home_p2_status_max_ink) home_p2_status_max_ink = status_ink;
         if (stats_ink < home_p2_stats_min_ink) home_p2_stats_min_ink = stats_ink;
-        if (status_ink || !stats_ink) ++region_violation_total;
+        if (home_state_count || home_stats_count != 3u || status_ink || !stats_ink) ++region_violation_total;
     }
     fprintf(draw_log, "HOME_REGIONS\t%s\t%u\t%u\t%u\n", case_name, page, status_ink, stats_ink);
 }
@@ -352,6 +371,7 @@ static void init_data(int maximum) {
     }
     for (i = 0; i < MAX_CH_NUM; ++i) {
         CH_com_buf[i].valid = 1;
+        CH_com_buf[i].data_re_flag = 1;
         CH_com_buf[i].Type = types[i % 10];
         CH_com_buf[i].CH_data = maximum ? (CH_com_buf[i].Type == TPYE_QJ ? (uint16_t)(int16_t)-32768 : 65535) : values[i % 10];
         CH_com_buf[i].voltage = maximum ? 255 : 35;
@@ -553,7 +573,7 @@ int main(int argc, char **argv) {
     draw_log = fopen("draws.tsv", "wb");
     case_log = fopen("cases.tsv", "wb");
     if (!draw_log || !case_log) return 2;
-    if (strcmp(scope, "home") && strcmp(scope, "menus")) return 2;
+    if (strcmp(scope, "home") && strcmp(scope, "menus") && strcmp(scope, "unified")) return 2;
     endpoint_failures = check_white_text_bounds();
     fprintf(case_log, "case\trank\tmenu\tsubpage\tselected\tpage\tmissing_glyphs\tboundary_events\tdata_mutations\tredraw_mismatches\tbitmap_state_changes\tregion_violations\n");
     init_data(0);
@@ -627,7 +647,31 @@ int main(int argc, char **argv) {
     render("power_off_message_tick10", 1, 0, 0, 0, 1);
     ui_show_msg(UI_MSG_NONE);
     render("restart_confirmation", 4, 0, 0, 0, 1);
-    if (!strcmp(scope, "menus")) render_menu_cases();
+    if (!strcmp(scope, "menus") || !strcmp(scope, "unified")) render_menu_cases();
+    if (!strcmp(scope, "unified")) {
+        init_data(0);
+        for (m = 0; m < MAX_CH_NUM; ++m) CH_com_buf[m].data_re_flag = 0;
+        render_home("home_bound_waiting", 1);
+        render_home("home_page2_bound_waiting", 2);
+        render("menu_signal_waiting", 3, 3, 3, 0, 1);
+        render("menu_voltage_waiting", 3, 3, 4, 0, 1);
+        render("menu_names_waiting", 3, 6, 5, 0, 1);
+        for (m = 0; m < MAX_CH_NUM; ++m) {
+            CH_com_buf[m].data_re_flag = 1;
+            CH_com_buf[m].CH_data = CH_com_buf[m].rssi = CH_com_buf[m].voltage = 0;
+        }
+        render_home("home_received_zero", 1);
+        render_home("home_page2_received_zero", 2);
+        render("menu_signal_received_zero", 3, 3, 3, 0, 1);
+        render("menu_voltage_received_zero", 3, 3, 4, 0, 1);
+        CH_com_buf[0].data_re_flag = 0;
+        render_home("home_partial_received", 1);
+        render("menu_signal_partial_received", 3, 3, 3, 0, 1);
+        render("menu_voltage_partial_received", 3, 3, 4, 0, 1);
+        strcpy((char *)CH_com_buf[9].name, "SW_10_WY_g_jpqy");
+        strcpy((char *)CH_com_buf[19].name, "SW_20_WY_g_jpqy");
+        render("menu_names_descenders", 3, 6, 5, 0, 1);
+    }
     fclose(draw_log);
     fclose(case_log);
     summary = fopen("summary.json", "wb");

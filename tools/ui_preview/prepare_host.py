@@ -61,7 +61,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("phase", choices=("before", "after"), nargs="?", default="after")
     parser.add_argument("--output", help="Output subdirectory beneath this tool")
-    parser.add_argument("--scope", choices=("home", "menus"), default="home")
+    parser.add_argument("--scope", choices=("home", "menus", "unified"), default="home")
     parser.add_argument("--baseline-sha256", help="Require the frozen session source to have this SHA256")
     args = parser.parse_args()
     output = output_directory(args.output, args.scope)
