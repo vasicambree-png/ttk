@@ -6,6 +6,15 @@
 python tools/ui_preview/run_preview.py
 ```
 
+当前主页两页统一88×44 Logo、18px数据文字和22px行距；顶部第1页为状态、分站、
+右对齐本机号，第2页为已绑定、已用通道、报警。主页范围自动检查真实文字墨迹、
+单元格边界及内部碰撞，两页等待数据/真实零值/部分接收独立检查。
+本轮独立预览保存在`home_enlarged_output/`，复验命令：
+
+```powershell
+python -B tools/ui_preview/run_preview.py --scope home --output home_enlarged_output --phase after
+```
+
 工具使用完整 `CH584_V1_0_1/APP/yuying_TFT.c` 和实际工程头文件，直接编译工程的字体解码、UTF-8 解码、位图、矩形、圆角和线条绘制算法。只将显示端点接到本地 384×168 单色像素数组，并把 GPIO/SPI/延时端点设为空操作。源码仅在生成的宿主副本中将 MSVC 不接受的未使用空数组调整为一个零字节。
 
 第一次运行会保留 `output/yuying_TFT.session_before.c`，后续运行不会覆盖此快照。`before` 从该快照编译，`after` 从当前 UI 源码编译。历史 `obj/display_verify` 不会被修改。
@@ -64,8 +73,8 @@ python -B tools/ui_preview/run_preview.py --scope unified --output unified_text_
 
 绘图测试同时观察 u8g2 字体和本项目位图字模入口。字体字号表来自当前生成头文件，
 不以测试程序另绘一套字体代替固件；普通文本缺字及反白位图的边界均计入检查。
-第1页状态行在Logo下方，数据框延伸到底部；第2页保留底部统计栏。
-因此旧版“第1页底部区域必须全白”的约束由“第1页没有统计文字”替代。
+两页状态/统计位于Logo右侧顶部，数据框位置、字号与行高统一且延伸到底部。
+before通过实际绘图识别旧版布局，after要求新的顶栏及网格布局。
 历史 before/after 字体差异是本次预期变化，`unified` 不要求旧页面逐像素相同。
 `--phase both` 可保留视觉对照，before 的旧布局问题只作诊断。
 

@@ -37,6 +37,10 @@ static unsigned home_p2_status_max_ink, home_p2_stats_min_ink = 0xffffffffu;
 static unsigned badge_count, home_state_count, home_stats_count;
 static char badge_text[32][4];
 static FILE *draw_log, *case_log;
+static int custom_glyph_active, custom_left, custom_top, custom_right, custom_bottom;
+static unsigned custom_points;
+static unsigned home_logo_count, home_logo_width, home_logo_height, home_new_layout;
+static unsigned home_header_bottom, home_state_baseline, home_stats_baseline;
 
 /* 主页分页契约检查区域（像素坐标，含边界）。
  *   状态行带：第 1 页必须有墨迹，第 2 页必须全白；
@@ -90,6 +94,13 @@ void u8g2_SendBuffer(u8g2_t *u) { (void)u; }
 uint8_t u8g2_IsIntersection(u8g2_t *u, u8g2_uint_t a, u8g2_uint_t b, u8g2_uint_t c, u8g2_uint_t d) { (void)u; (void)a; (void)b; (void)c; (void)d; return 1; }
 
 static void point(u8g2_t *u, int x, int y) {
+    if (custom_glyph_active) {
+        ++custom_points;
+        if (x < custom_left) custom_left = x;
+        if (y < custom_top) custom_top = y;
+        if (x > custom_right) custom_right = x;
+        if (y > custom_bottom) custom_bottom = y;
+    }
     /* White foreground glyphs (draw_color=0) have bounds too. */
     if (text_active) {
         ++text_points;
@@ -129,7 +140,20 @@ void u8g2_DrawBox(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, u8g2_uint_t w, u8g2_u
 void u8g2_DrawRFrame(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, u8g2_uint_t w, u8g2_uint_t h, u8g2_uint_t r) { check_box("RFRAME", x, y, w, h); real_u8g2_DrawRFrame(u, x, y, w, h, r); }
 void u8g2_DrawRBox(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, u8g2_uint_t w, u8g2_uint_t h, u8g2_uint_t r) { check_box("RBOX", x, y, w, h); real_u8g2_DrawRBox(u, x, y, w, h, r); }
 void u8g2_DrawXBM(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, u8g2_uint_t w, u8g2_uint_t h, const uint8_t *b) { check_box("XBM", x, y, w, h); real_u8g2_DrawXBM(u, x, y, w, h, b); }
-void u8g2_DrawXBMP(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, u8g2_uint_t w, u8g2_uint_t h, const uint8_t *b) { check_box("XBMP", x, y, w, h); real_u8g2_DrawXBMP(u, x, y, w, h, b); }
+void u8g2_DrawXBMP(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, u8g2_uint_t w, u8g2_uint_t h, const uint8_t *b) {
+    check_box("XBMP", x, y, w, h);
+    if (home_page_expect && !strcmp(draw_pass, "primary") && x == 9u && y == 5u && w >= 60u && h >= 30u) {
+        ++home_logo_count;
+        home_logo_width = w;
+        home_logo_height = h;
+        if (w == 88u && h == 44u) home_new_layout = 1u;
+    }
+    /* Generated glyph canvases have these exact heights. Observe actual ink,
+     * rather than treating blank advance columns as overlapping text. */
+    custom_glyph_active = w <= 24u && (h == 13u || h == 16u || h == 18u || h == 20u);
+    real_u8g2_DrawXBMP(u, x, y, w, h, b);
+    custom_glyph_active = 0;
+}
 
 static const char *font_name(const uint8_t *f) {
     if (f == u8g2_font_wqy14_t_gb2312a) return "wqy14";
@@ -181,17 +205,32 @@ u8g2_uint_t u8g2_DrawUTF8(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, const char *s
 void ui_preview_text(uint16_t x, uint16_t y, const char *text, uint8_t size, unsigned missing) {
     fprintf(draw_log, "CUSTOM_TEXT\t%s\t%s\t%u\t%u\t%u\t%u\t%s\n",
             case_name, draw_pass, x, y, size, missing, text);
+    fprintf(draw_log, "CUSTOM_INK\t%s\t%s\t%u\t%u\t%u\t%d\t%d\t%d\t%d\t%s\n",
+            case_name, draw_pass, x, y, size,
+            custom_points ? custom_left : -1, custom_points ? custom_top : -1,
+            custom_points ? custom_right : -1, custom_points ? custom_bottom : -1, text);
+    custom_left = custom_top = 32767;
+    custom_right = custom_bottom = -32768;
+    custom_points = 0;
     missing_total += missing;
     if (home_page_expect && !strcmp(draw_pass, "primary")) {
         unsigned k, digits = 1;
         for (k = 0; text[k]; ++k) if (text[k] < '0' || text[k] > '9') { digits = 0; break; }
-        if (digits && k && k < 4 && size == 11u &&
-            (x < 40u || (x >= 203u && x < 225u)) && y >= 60u && y <= 154u && badge_count < 32u)
+        if (digits && k && k < 4 && (size == 11u || size == 14u) &&
+            (x < 40u || (x >= 203u && x < 225u)) && y >= 60u && y <= 158u && badge_count < 32u)
             strcpy(badge_text[badge_count++], text);
-        if (!strncmp(text, "状态：", strlen("状态："))) ++home_state_count;
+        if (size == 18u) home_new_layout = 1u;
+        if (!strncmp(text, "状态：", strlen("状态："))) {
+            ++home_state_count;
+            home_state_baseline = y;
+        }
         if (!strncmp(text, "已绑定:", strlen("已绑定:")) ||
             !strncmp(text, "已用通道:", strlen("已用通道:")) ||
-            !strncmp(text, "报警:", strlen("报警:"))) ++home_stats_count;
+            !strncmp(text, "报警:", strlen("报警:"))) {
+            ++home_stats_count;
+            home_stats_baseline = y;
+            if (y >= 52u) ++home_header_bottom;
+        }
     }
 }
 
@@ -226,6 +265,9 @@ static void checked_draw(void) {
     uint32_t name_seconds_before = g_name_chk_sec;
     uint8_t message_before = g_ui_msg;
     uint8_t bitmap_mode_before = u8g2.bitmap_transparency;
+    custom_left = custom_top = 32767;
+    custom_right = custom_bottom = -32768;
+    custom_points = 0;
     memcpy(channels_before, CH_com_buf, sizeof(channels_before));
     memcpy(bindings_before, g_binding_list, sizeof(bindings_before));
     memcpy(scan_before, g_scan_name_cache, sizeof(scan_before));
@@ -265,6 +307,8 @@ static void render(const char *name, unsigned rank, unsigned menu, unsigned re, 
     Data_list1.UI_main.chu_num2 = (uint16_t)page;
     draw_pass = "primary";
     badge_count = home_state_count = home_stats_count = 0;
+    home_logo_count = home_logo_width = home_logo_height = home_new_layout = 0;
+    home_header_bottom = home_state_baseline = home_stats_baseline = 0;
     checked_draw();
     memcpy(primary, pixels, sizeof(primary));
     save_pixels(name);
@@ -286,15 +330,16 @@ static void render(const char *name, unsigned rank, unsigned menu, unsigned re, 
     ++cases_total;
 }
 
-/* 主页分页契约：第1页状态居中、数据延伸到底；第2页无状态行、有底部统计栏；
- * 通道号只允许本页的 1..10 或 11..20。 */
+/* Recognize the frozen legacy layout from its actual draw calls. The enlarged
+ * layout puts each page's metadata above identical grids and uses one logo.
+ * Channel numbers remain 1..10 or 11..20 on the corresponding page. */
 static void check_home_contract(unsigned page) {
     unsigned i, j, ok = 1;
     unsigned first_ch = (page == 2u) ? 11u : 1u;
-    unsigned status_ink = page == 1u ? ink_in_region(14u, 43u, 374u, 60u) :
+    unsigned status_ink = home_new_layout ? (page == 1u ? ink_in_region(102u, 34u, 372u, 46u) : 0u) : page == 1u ? ink_in_region(14u, 43u, 374u, 60u) :
         ink_in_region(HOME_STATUS_REGION_X0, HOME_STATUS_REGION_Y0,
                       HOME_STATUS_REGION_X1, HOME_STATUS_REGION_Y1);
-    unsigned stats_ink = ink_in_region(HOME_STATS_REGION_X0, HOME_STATS_REGION_Y0,
+    unsigned stats_ink = home_new_layout ? (page == 2u ? ink_in_region(102u, 34u, 372u, 46u) : 0u) : ink_in_region(HOME_STATS_REGION_X0, HOME_STATS_REGION_Y0,
                                        HOME_STATS_REGION_X1, HOME_STATS_REGION_Y1);
 
     for (i = 0; i < 10u; ++i) {
@@ -307,9 +352,16 @@ static void check_home_contract(unsigned page) {
         unsigned value = (unsigned)atoi(badge_text[j]);
         if (page == 1u ? (value < 1u || value > 10u) : (value < 11u || value > 20u)) ok = 0;
     }
+    if (badge_count != 10u) ok = 0;
     if (!ok) {
         ++badge_violation_total;
         fprintf(draw_log, "HOME_CHANNEL_SET\t%s\t%u\t%u\n", case_name, page, badge_count);
+    }
+    if (home_new_layout && (home_logo_count != 1u || home_logo_width != 88u || home_logo_height != 44u ||
+        home_header_bottom || (page == 1u ? home_state_baseline != 44u : home_stats_baseline != 44u))) {
+        ++region_violation_total;
+        fprintf(draw_log, "HOME_HEADER_CONTRACT\t%s\t%u\t%u\t%u\t%u\n", case_name, page,
+                home_logo_count, home_logo_width, home_logo_height);
     }
     if (page == 1u) {
         if (status_ink < home_p1_status_min_ink) home_p1_status_min_ink = status_ink;
@@ -648,29 +700,35 @@ int main(int argc, char **argv) {
     ui_show_msg(UI_MSG_NONE);
     render("restart_confirmation", 4, 0, 0, 0, 1);
     if (!strcmp(scope, "menus") || !strcmp(scope, "unified")) render_menu_cases();
-    if (!strcmp(scope, "unified")) {
+    if (!strcmp(scope, "home") || !strcmp(scope, "unified")) {
         init_data(0);
         for (m = 0; m < MAX_CH_NUM; ++m) CH_com_buf[m].data_re_flag = 0;
         render_home("home_bound_waiting", 1);
         render_home("home_page2_bound_waiting", 2);
-        render("menu_signal_waiting", 3, 3, 3, 0, 1);
-        render("menu_voltage_waiting", 3, 3, 4, 0, 1);
-        render("menu_names_waiting", 3, 6, 5, 0, 1);
+        if (!strcmp(scope, "unified")) {
+            render("menu_signal_waiting", 3, 3, 3, 0, 1);
+            render("menu_voltage_waiting", 3, 3, 4, 0, 1);
+            render("menu_names_waiting", 3, 6, 5, 0, 1);
+        }
         for (m = 0; m < MAX_CH_NUM; ++m) {
             CH_com_buf[m].data_re_flag = 1;
             CH_com_buf[m].CH_data = CH_com_buf[m].rssi = CH_com_buf[m].voltage = 0;
         }
         render_home("home_received_zero", 1);
         render_home("home_page2_received_zero", 2);
-        render("menu_signal_received_zero", 3, 3, 3, 0, 1);
-        render("menu_voltage_received_zero", 3, 3, 4, 0, 1);
+        if (!strcmp(scope, "unified")) {
+            render("menu_signal_received_zero", 3, 3, 3, 0, 1);
+            render("menu_voltage_received_zero", 3, 3, 4, 0, 1);
+        }
         CH_com_buf[0].data_re_flag = 0;
         render_home("home_partial_received", 1);
-        render("menu_signal_partial_received", 3, 3, 3, 0, 1);
-        render("menu_voltage_partial_received", 3, 3, 4, 0, 1);
-        strcpy((char *)CH_com_buf[9].name, "SW_10_WY_g_jpqy");
-        strcpy((char *)CH_com_buf[19].name, "SW_20_WY_g_jpqy");
-        render("menu_names_descenders", 3, 6, 5, 0, 1);
+        if (!strcmp(scope, "unified")) {
+            render("menu_signal_partial_received", 3, 3, 3, 0, 1);
+            render("menu_voltage_partial_received", 3, 3, 4, 0, 1);
+            strcpy((char *)CH_com_buf[9].name, "SW_10_WY_g_jpqy");
+            strcpy((char *)CH_com_buf[19].name, "SW_20_WY_g_jpqy");
+            render("menu_names_descenders", 3, 6, 5, 0, 1);
+        }
     }
     fclose(draw_log);
     fclose(case_log);

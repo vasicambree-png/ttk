@@ -159,31 +159,31 @@ def high_resolution_brand_bitmap(reference):
     word = word.crop(word.getbbox()).convert("L")
     parts = wordmark_components(word)
     letters = parts[:4] + [parts[4] + parts[5]] + parts[6:]
-    english = Image.new("L", (71, 8), 0)
+    english = Image.new("L", (87, 10), 0)
     x = 0
-    for index, (pixels, width) in enumerate(zip(letters, (8, 10, 10, 13, 4, 10, 10))):
+    for index, (pixels, width) in enumerate(zip(letters, (10, 12, 12, 16, 5, 13, 13))):
         glyph = component_bitmap(pixels, word.height)
-        glyph = mono(glyph.resize((width, 8), Image.Resampling.LANCZOS), 160)
+        glyph = mono(glyph.resize((width, 10), Image.Resampling.LANCZOS), 160)
         if index == 4:
             # One blank row below the i dot; keep its body on the common baseline.
-            glyph = Image.new("L", (width, 8), 0)
+            glyph = Image.new("L", (width, 10), 0)
             body = component_bitmap(parts[4], word.height)
             dot = component_bitmap(parts[5], word.height)
-            body = mono(body.crop(body.getbbox()).resize((width, 4), Image.Resampling.LANCZOS), 160)
-            dot = mono(dot.crop(dot.getbbox()).resize((3, 1), Image.Resampling.LANCZOS), 160)
-            glyph.paste(body, (0, 2))
+            body = mono(body.crop(body.getbbox()).resize((width, 6), Image.Resampling.LANCZOS), 160)
+            dot = mono(dot.crop(dot.getbbox()).resize((3, 2), Image.Resampling.LANCZOS), 160)
+            glyph.paste(body, (0, 3))
             glyph.paste(dot, (1, 0))
         english.paste(glyph, (x, 0))
         x += width + 1
 
-    brand = Image.new("L", (72, 36), 0)
-    symbol = mono(mark.resize((28, 15), Image.Resampling.LANCZOS), 140)
-    brand.paste(symbol, (22, 0))
-    brand.paste(english, (0, 16))
-    # Preserve the previous caption pixels and position while widening English.
+    brand = Image.new("L", (88, 44), 0)
+    symbol = mono(mark.resize((34, 18), Image.Resampling.LANCZOS), 140)
+    brand.paste(symbol, (27, 0))
+    brand.paste(english, (0, 20))
+    # Caption still comes from the supplied artwork, enlarged with the brand.
     caption = read_reuse_logo(LOGO_SOURCE).crop((0, 34, 78, 48))
-    caption = mono(caption.resize((60, 11), Image.Resampling.LANCZOS), 128)
-    brand.paste(caption, (0, 25))
+    caption = mono(caption.resize((74, 14), Image.Resampling.LANCZOS), 128)
+    brand.paste(caption, (7, 30))
     return mono(brand)
 
 

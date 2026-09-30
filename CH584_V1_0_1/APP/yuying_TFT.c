@@ -96,7 +96,7 @@ const uint8_t MAIN_LEN = sizeof(Main_List) / sizeof(MENU_LIST);  //�����
  * 普通文字统一为微软雅黑粗体，使用 ui_menu_assets.h 的 11/14/16/18 字模；
  * 首页静态标题同为微软雅黑粗体 20px。Logo 保留原图字形。
  * UI_FONT_CN 仅保留现有 u8g2 上下文配置，实际页面文本由 ui_text_draw 绘制。
- * 20通道页/轮显列表用11px和13px行距，首页正文14px和19px行距。
+ * 20通道页/轮显列表用11px和13px行距，首页正文18px和22px行距。
  * ================================================================== */
 
 /* 通道类型显示表（下标 = Sensor_Tpye 数值，与 STM32 的 Data_tpye 逐项一致）
@@ -472,8 +472,10 @@ void UI_Control(data_LIST *list)
 #define MAIN_ROW_BASE(i)  ((uint8_t)(MAIN_GRID_TOP + 13 + MAIN_ROW_H * (i)))
 
 /* 主页专用坐标，避免影响信号、电压和名称子页。 */
-#define HOME_GRID_TOP     46
-#define HOME_ROW_H        19
+#define HOME_GRID_TOP     52
+#define HOME_ROW_H        22
+#define HOME_GRID_H       110
+#define HOME_TEXT_SIZE    18u
 #define HOME_ROWS         5
 #define HOME_CELL_L_X     14
 #define HOME_CELL_R_X     203
@@ -481,27 +483,25 @@ void UI_Control(data_LIST *list)
 #define HOME_DATA_RIGHT   166
 #define HOME_HEADER_BATTERY_RIGHT 372u
 #define HOME_HEADER_BATTERY_BASE  20u
-#define HOME_STATUS_BASELINE      56u
-#define HOME_STATUS_LEFT          14u
-#define HOME_STATUS_RIGHT         374u
-#define HOME_STATUS_DIVIDER_X     8u
-#define HOME_STATUS_DIVIDER_W     369u
-#define HOME_STATUS_DIVIDER_Y     61u
-#define HOME_STATS_X              6u
-#define HOME_STATS_Y              147u
-#define HOME_STATS_W              372u
+#define HOME_STATUS_BASELINE      44u
+#define HOME_STATUS_HOST_RIGHT    372u
+#define HOME_STATUS_STATION_X     169u
+#define HOME_STATUS_STATE_X       102u
+#define HOME_STATS_X              101u
+#define HOME_STATS_Y              32u
+#define HOME_STATS_W              276u
 #define HOME_STATS_H              17u
-#define HOME_STATS_DIVIDER_Y      150u
+#define HOME_STATS_DIVIDER_Y      35u
 #define HOME_STATS_DIVIDER_H      11u
-#define HOME_STATS_BASELINE       161u
-#define HOME_STATS_DIVIDER_1      130u
-#define HOME_STATS_DIVIDER_2      254u
-#define HOME_STATS_COL1_X         7u
-#define HOME_STATS_COL1_W         123u
-#define HOME_STATS_COL2_X         131u
-#define HOME_STATS_COL2_W         123u
-#define HOME_STATS_COL3_X         255u
-#define HOME_STATS_COL3_W         122u
+#define HOME_STATS_BASELINE       44u
+#define HOME_STATS_DIVIDER_1      190u
+#define HOME_STATS_DIVIDER_2      294u
+#define HOME_STATS_COL1_X         105u
+#define HOME_STATS_COL1_W         84u
+#define HOME_STATS_COL2_X         191u
+#define HOME_STATS_COL2_W         102u
+#define HOME_STATS_COL3_X         295u
+#define HOME_STATS_COL3_W         77u
 
 /* 切角横纵跨度相等，保持 45 度直线，供主页各类边框共用。 */
 static void ui_main_cut_frame(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
@@ -542,7 +542,8 @@ static void ui_main_draw_title(void)
     uint8_t row, stripe, offset;
     uint16_t left;
 
-    for (row = 0u; row < 27u; row++)
+    /* Leave the enlarged wordmark clear below the diagonal wings. */
+    for (row = 0u; row < 22u; row++)
     {
         left = (uint16_t)(72u + row);
         u8g2_DrawHLine(&u8g2, left, (uint16_t)(2u + row), 17u);
@@ -585,11 +586,6 @@ static uint16_t ui_main_meta_code(const uint8_t **cursor)
     return code;
 }
 
-static uint16_t ui_main_meta_width(const char *text)
-{
-    return ui_text_width(text, 11u);
-}
-
 static void ui_main_meta_draw(uint16_t x, uint16_t baseline, const char *text)
 {
     ui_text_draw(x, baseline, text, 11u);
@@ -600,13 +596,13 @@ static void ui_main_channel_badge(uint16_t x, uint16_t baseline, uint8_t channel
 {
     char label[4];
     uint16_t label_width;
-    uint16_t top = (uint16_t)(baseline - 12u);
+    uint16_t top = (uint16_t)(baseline - 15u);
 
-    ui_main_cut_frame(x, top, 20u, 15u, 2u);
+    ui_main_cut_frame(x, top, 22u, 18u, 2u);
     sprintf(label, "%u", (unsigned int)channel);
     u8g2_SetFont(&u8g2, UI_FONT_CN);
-    label_width = ui_text_width(label, 11u);
-    ui_text_draw((uint16_t)(x + (20u - label_width) / 2u), baseline, label, 11u);
+    label_width = ui_text_width(label, 14u);
+    ui_text_draw((uint16_t)(x + (22u - label_width) / 2u), baseline, label, 14u);
     u8g2_SetFont(&u8g2, UI_FONT_CN);
 }
 
@@ -622,10 +618,9 @@ void UI_Main_Display(data_LIST *pData)
     u8g2_SetFontMode(&u8g2, 1);
     u8g2_SetFont(&u8g2, UI_FONT_CN);          /* 中文全字库，见文件顶部说明 */
 
-    /* 分页在状态行与底部统计栏之前确定：第 1 页显示状态/本机号/分站，
-     * 第 2 页显示底部统计栏；分页依据仍是 0x01 帧的 chu_num1。 */
+    /* 两页只替换顶部信息和通道集合，Logo、网格及字号共用。 */
     page = (pData->UI_main.chu_num1 == 2u) ? 2u : 1u;
-    grid_top = (page == 1u) ? 64u : HOME_GRID_TOP;
+    grid_top = HOME_GRID_TOP;
 
     /* ---------- 双层切角外框、左侧品牌区与中部标题牌 ---------- */
     u8g2_SetBitmapMode(&u8g2, 1);
@@ -654,27 +649,20 @@ void UI_Main_Display(data_LIST *pData)
         else                                           sprintf(send_str, "%d", pData->UI_main.send_host_num);
 
         {
-            uint16_t state_w, station_w, state_x;
             const char *state = (pData->UI_main.state == 1) ? "开机" : "关机";
             sprintf(buf, "状态：%s", state);
-            state_w = ui_main_meta_width(buf);
-            state_x = (uint16_t)((SCREEN_WIDTH - state_w) / 2u);
-            ui_main_meta_draw(state_x, HOME_STATUS_BASELINE, buf);
+            ui_main_meta_draw(HOME_STATUS_STATE_X, HOME_STATUS_BASELINE, buf);
             sprintf(buf, "本机号：%d-->%s", pData->UI_main.host_num, send_str);
-            ui_main_meta_draw(HOME_STATUS_LEFT, HOME_STATUS_BASELINE, buf);
+            w = ui_text_width(buf, 11u);
+            ui_main_meta_draw((uint16_t)(HOME_STATUS_HOST_RIGHT - w), HOME_STATUS_BASELINE, buf);
             sprintf(buf, "分站：%d", pData->UI_main.sub_num);
-            station_w = ui_main_meta_width(buf);
-            ui_main_meta_draw((uint16_t)(HOME_STATUS_RIGHT - station_w), HOME_STATUS_BASELINE, buf);
+            ui_main_meta_draw(HOME_STATUS_STATION_X, HOME_STATUS_BASELINE, buf);
         }
-
-        /* 仅保留数据区上沿的一条分隔线；左右双框本身已清楚区分两列。 */
-        u8g2_DrawHLine(&u8g2, HOME_STATUS_DIVIDER_X, HOME_STATUS_DIVIDER_Y,
-                       HOME_STATUS_DIVIDER_W);
     }
 
     /* ---------- 两页共用同一位置的左右数据框 ---------- */
-    ui_main_cut_frame(7u, grid_top, 181u, 98u, 6u);
-    ui_main_cut_frame(196u, grid_top, 181u, 98u, 6u);
+    ui_main_cut_frame(7u, grid_top, 181u, HOME_GRID_H, 6u);
+    ui_main_cut_frame(196u, grid_top, 181u, HOME_GRID_H, 6u);
 
     for (i = 1; i < HOME_ROWS; i++)
     {
@@ -693,7 +681,7 @@ void UI_Main_Display(data_LIST *pData)
         row = (uint8_t)(i % HOME_ROWS);                /* 0..4 */
         col = (uint8_t)(i / HOME_ROWS);                /* 0 = 左列，1 = 右列 */
         cx  = (uint8_t)(col ? HOME_CELL_R_X : HOME_CELL_L_X);
-        y   = (uint8_t)(grid_top + 14u + HOME_ROW_H * row);
+        y   = (uint8_t)(grid_top + 18u + HOME_ROW_H * row);
 
         ui_main_channel_badge(cx, y, (uint8_t)(ch + 1u));
         /* Channel labels exist before binding; types/units come from binding metadata. */
@@ -701,23 +689,23 @@ void UI_Main_Display(data_LIST *pData)
         {
             uint16_t value_w, unit_w, unit_x;
             const char *unit = CH_TYPE_UNIT[d->Type];
-            ui_draw((uint16_t)(cx + HOME_NUM_W), y, CH_TYPE_NAME[d->Type]);
-            unit_w = ui_text_width(unit, 14u);
+            ui_text_draw((uint16_t)(cx + HOME_NUM_W), y, CH_TYPE_NAME[d->Type], HOME_TEXT_SIZE);
+            unit_w = ui_text_width(unit, HOME_TEXT_SIZE);
             unit_x = (uint16_t)(cx + HOME_DATA_RIGHT - unit_w);
             if (d->data_re_flag) ch_disp_format(buf, sizeof(buf), (Sensor_Tpye)d->Type, d->CH_data);
             else strcpy(buf, "--");
-            value_w = ui_text_width(buf, 14u);
-            ui_draw((uint16_t)(unit_x - (unit_w ? 4u : 0u) - value_w), y, buf);
-            if (unit_w) ui_draw(unit_x, y, unit);
+            value_w = ui_text_width(buf, HOME_TEXT_SIZE);
+            ui_text_draw((uint16_t)(unit_x - (unit_w ? 4u : 0u) - value_w), y, buf, HOME_TEXT_SIZE);
+            if (unit_w) ui_text_draw(unit_x, y, unit, HOME_TEXT_SIZE);
         }
         else
         {
-            ui_draw((uint16_t)(cx + HOME_NUM_W), y, "通道");
-            ui_draw((uint16_t)(cx + HOME_DATA_RIGHT - ui_text_width("--", 14u)), y, "--");
+            ui_text_draw((uint16_t)(cx + HOME_NUM_W), y, "通道", HOME_TEXT_SIZE);
+            ui_text_draw((uint16_t)(cx + HOME_DATA_RIGHT - ui_text_width("--", HOME_TEXT_SIZE)), y, "--", HOME_TEXT_SIZE);
         }
     }
 
-    /* ---------- 第 2 页专属：底部三段统计栏：与参考图一致用冒号和竖线分隔 ---------- */
+    /* ---------- 第 2 页专属：三段统计栏收至Logo右侧上方 ---------- */
     if (page == 2u)
     {
         ui_main_cut_frame(HOME_STATS_X, HOME_STATS_Y, HOME_STATS_W, HOME_STATS_H, 4u);

@@ -6,6 +6,7 @@ line_output/
 home_split_output/
 home_final_output/
 unified_text_output/
+home_enlarged_output/
 __pycache__/
 *.obj
 *.exe
