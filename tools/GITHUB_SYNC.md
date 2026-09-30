@@ -1,13 +1,14 @@
 # GitHub 同步操作记录
 
-目的：供后续 Codex 聊天和执行模型复用已验证的流程，减少重复检查和认证试错。该文档由根目录 `AGENTS.md` 引用，不需要安装全局 skill。
+目的：保留本项目的同步记录。跨项目流程已安装为全局 `github-sync` skill，并由全局 `AGENTS.md` 引用；通用经验优先读取该 skill，项目配置仍需现场确认。
 
 ## 项目和已验证的现象
 
 - 项目：`D:\蓝牙模块优化`。
 - 当前远程：`https://github.com/vasicambree-png/ttk.git`，分支 `main`。每次操作仍需读取实际配置，不硬编码旧提交 SHA。
 - 2026-09-29 同步时，命令行 `git fetch origin` 返回 `Repository not found`。
-- `git credential-manager github list` 当时只列出 `1tjk1`；GitHub 连接的用户为 `vasicambree-png`，连接确认目标仓库存在、为私有仓库且具有 push 权限。证据指向命令行登录账号不匹配；凭据配置尚未修复。
+- `git credential-manager github list` 当时只列出 `1tjk1`；GitHub 连接的用户为 `vasicambree-png`，连接确认目标仓库存在、为私有仓库且具有 push 权限。证据指向命令行登录账号不匹配。
+- 同日已用 GCM 2.7.3 的 `github login --username vasicambree-png --browser --force` 登录成功，并设置 GitHub.com 专属全局默认用户名。原生 Git fetch 和 ls-remote 已成功；保留旧账号凭据，不影响其他 Git 服务。device 登录曾不返回授权码，当前优先 browser 流程。
 - 已通过 GitHub 连接的 Git Data 工具上传，并核对远程代码树与本地 `git write-tree` 的 SHA 一致。原提交历史保留，本地分支也对应同一个提交。
 - `Repository not found` 不足以证明仓库不存在；先确认账号和访问权限，不创建替代仓库、不修改 origin。
 
@@ -42,7 +43,7 @@ git status --short --branch
 
 每条命令成功后才执行依赖它的下一条。提交前确认远程没有尚未整合的新增提交；推送必须为正常快进。远程分支 SHA 与本地 HEAD 一致才算成功。
 
-本机认证未变时不要反复执行失败的 fetch/push；直接使用路线 B。用户希望修复命令行认证时，使用 Git Credential Manager 正式登录正确账号；不要读取、打印令牌或自行把凭据写入文件。
+当前优先路线 A。以后若认证再次异常，不要反复执行失败的 fetch/push；核对账号与访问权限，必要时使用路线 B。需要重新登录时使用 Git Credential Manager 正式 browser 流程；不要读取、打印令牌或自行把凭据写入文件。
 
 ## 路线 B：通过已登录的 GitHub 连接
 
