@@ -595,6 +595,38 @@ static void render_menu_cases(void) {
         render(name, 3, menu, re, 0, 1);
     }
 
+    /* Distinct column endpoints reveal skipped, duplicated or shifted channels. */
+    init_data(0);
+    {
+        static const unsigned endpoints[] = {0, 9, 10, 19};
+        static const uint8_t values[] = {11, 42, 73, 104};
+        for (i = 0; i < 4; ++i) {
+            unsigned ch = endpoints[i];
+            CH_com_buf[ch].valid = CH_com_buf[ch].data_re_flag = 1;
+            CH_com_buf[ch].rssi = (uint8_t)(int8_t)-(int)values[i];
+            CH_com_buf[ch].voltage = values[i];
+            snprintf((char *)CH_com_buf[ch].name, MAX_NAME_LEN, "SW_CH%02u", ch + 1);
+        }
+    }
+    render("menu_signal_endpoints", 3, 3, 3, 0, 1);
+    render("menu_voltage_endpoints", 3, 3, 4, 0, 1);
+    render("menu_names_endpoints", 3, 6, 5, 0, 1);
+
+    init_data(0);
+    for (i = 0; i < MAX_CH_NUM; ++i) CH_com_buf[i].data_re_flag = 0;
+    render("menu_20_signal_waiting", 3, 3, 3, 0, 1);
+    render("menu_20_voltage_waiting", 3, 3, 4, 0, 1);
+    render("menu_20_names_waiting", 3, 6, 5, 0, 1);
+    for (i = 0; i < MAX_CH_NUM; ++i) {
+        CH_com_buf[i].data_re_flag = 1;
+        CH_com_buf[i].rssi = CH_com_buf[i].voltage = 0;
+    }
+    render("menu_20_signal_received_zero", 3, 3, 3, 0, 1);
+    render("menu_20_voltage_received_zero", 3, 3, 4, 0, 1);
+    CH_com_buf[19].data_re_flag = 0;
+    render("menu_20_signal_partial_received", 3, 3, 3, 0, 1);
+    render("menu_20_voltage_partial_received", 3, 3, 4, 0, 1);
+
     /* Carry font, color and bitmap context across alternating actual pages. */
     init_data(0);
     for (i = 0; i < 3; ++i) {

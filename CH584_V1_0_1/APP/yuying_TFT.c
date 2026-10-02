@@ -860,7 +860,7 @@ void UI_Menu_Display(void)
     u8g2_SetBitmapMode(&u8g2, 1);
     u8g2_SetFontMode(&u8g2, 1);
 
-    /* Preserve the three full-screen channel branches and their supplied page codes. */
+    /* Preserve the three full-screen channel branches. */
     if (Data_list1.menu_rank == 3)
     {
         uint8_t re_top = Data_list1.UI_main.re_flag;
@@ -1001,52 +1001,58 @@ void binding_Control(void)
  *   ★ 恢复出厂的实际执行 = STM32 发 0x07（CH584M 在 case 0x07 里清 RAM + 擦 Flash）。
  * ================================================================== */
 
-/* Name/RSSI/voltage pages: the same two-column, five-row grid as home.
- * chu_num2 == 2 selects channels 11..20; other values select 1..10.
- * The STM32 owns K2 and sends the next page or exits via the existing 0x01 frame.
- * Drawing never changes page state, binding metadata or received values. */
-static uint8_t ui_param_first(uint16_t page)
+/* Name/RSSI/voltage pages show all twenty channels in two columns of ten.
+ * Old chu_num2 page codes no longer select a channel subset on these pages.
+ * The controller still owns the keys and exits via the existing 0x01 frame.
+ * Drawing never changes page state, binding metadata or received values.
+ * Home keeps its separate two-page layout. */
+#define PARAM_ROWS         10u
+#define PARAM_GRID_TOP     38u
+#define PARAM_ROW_H        12u
+#define PARAM_GRID_H       124u
+#define PARAM_TEXT_SIZE    11u
+#define PARAM_NAME_OFFSET  24u
+
+static void ui_param_number(uint16_t x, uint16_t baseline, uint8_t channel)
 {
-    return (uint8_t)((page == 2u) ? 10u : 0u);
+    char label[4];
+    sprintf(label, "%u", (unsigned int)channel);
+    ui_text_draw(x, baseline, label, PARAM_TEXT_SIZE);
 }
 
-static void ui_param_header(uint16_t page, const char *title)
+static void ui_param_header(const char *title)
 {
-    char subtitle[24];
     uint8_t i;
-    sprintf(subtitle, "%s %u/2", title, (unsigned int)((page == 2u) ? 2u : 1u));
-    ui_menu_header(UI_Select, 1u, subtitle);
-    ui_menu_control(298u, 9u, 75u, 24u,
-                    (page == 2u) ? "返回" : "下一页", 1u, 1u);
-    ui_main_cut_frame(7u, HOME_GRID_TOP, 181u, HOME_GRID_H, 6u);
-    ui_main_cut_frame(196u, HOME_GRID_TOP, 181u, HOME_GRID_H, 6u);
-    for (i = 1u; i < HOME_ROWS; i++)
+    ui_menu_header(UI_Select, 1u, title);
+    ui_menu_control(298u, 9u, 75u, 24u, "返回", 1u, 1u);
+    ui_main_cut_frame(7u, PARAM_GRID_TOP, 181u, PARAM_GRID_H, 4u);
+    ui_main_cut_frame(196u, PARAM_GRID_TOP, 181u, PARAM_GRID_H, 4u);
+    for (i = 1u; i < PARAM_ROWS; i++)
     {
-        uint16_t y = (uint16_t)(HOME_GRID_TOP + HOME_ROW_H * i);
+        uint16_t y = (uint16_t)(PARAM_GRID_TOP + PARAM_ROW_H * i + 2u);
         u8g2_DrawHLine(&u8g2, 7u, y, 181u);
         u8g2_DrawHLine(&u8g2, 196u, y, 181u);
     }
 }
 
-static void summary_name_page(uint16_t page)
+static void summary_name_page(void)
 {
-    uint8_t i, first = ui_param_first(page);
+    uint8_t ch;
     uint16_t cx, y, name_x;
     device_t *d;
 
-    ui_param_header(page, "名称");
-    for (i = 0u; i < 10u; i++)
+    ui_param_header("名称");
+    for (ch = 0u; ch < MAX_CH_NUM; ch++)
     {
-        uint8_t ch = (uint8_t)(first + i);
-        cx = (uint16_t)((i / HOME_ROWS) ? HOME_CELL_R_X : HOME_CELL_L_X);
-        y = (uint16_t)(HOME_GRID_TOP + 18u + HOME_ROW_H * (i % HOME_ROWS));
+        cx = (uint16_t)((ch / PARAM_ROWS) ? HOME_CELL_R_X : HOME_CELL_L_X);
+        y = (uint16_t)(PARAM_GRID_TOP + 11u + PARAM_ROW_H * (ch % PARAM_ROWS));
         d = &CH_com_buf[ch];
-        ui_main_channel_badge(cx, y, (uint8_t)(ch + 1u));
-        name_x = (uint16_t)(cx + HOME_NUM_W + 6u);
+        ui_param_number(cx, y, (uint8_t)(ch + 1u));
+        name_x = (uint16_t)(cx + PARAM_NAME_OFFSET);
         if (d->valid && d->name[0] != '\0')
             ui_draw_name_size(name_x, y, d->name,
-                              (uint16_t)(cx + HOME_DATA_RIGHT - name_x), HOME_TEXT_SIZE);
-        else ui_text_draw(name_x, y, "--", HOME_TEXT_SIZE);
+                              (uint16_t)(HOME_DATA_RIGHT - PARAM_NAME_OFFSET), PARAM_TEXT_SIZE);
+        else ui_text_draw(name_x, y, "--", PARAM_TEXT_SIZE);
     }
     u8g2_SetFont(&u8g2, UI_FONT_CN);
 }
@@ -1064,7 +1070,7 @@ void summary_Control(void)
     uint8_t re = Data_list1.UI_main.re_flag;
     uint8_t rank3 = Data_list1.rank3_addr;
     char buf[48];
-    if (re == 5) { summary_name_page(Data_list1.UI_main.chu_num2); return; }
+    if (re == 5) { summary_name_page(); return; }
     if (re == 6) { summary_factory_page(rank3); return; }
     ui_menu_control(117u, 48u, 258u, 20u, "已绑定的设备名称", ui_menu_selected(0u), 0u);
     sprintf(buf, "蓝牙名称错误警报:%d", g_name_err_count);
@@ -1389,41 +1395,34 @@ void new_return(void)
     ui_draw(80, 80, "正在重启保存数据");
 }
 /* Installation: re_flag 3 = local RSSI, 4 = local voltage.
- * Both use the supplied chu_num2 page; received/waiting semantics are unchanged. */
-static void install_ch_page(uint8_t kind, uint16_t page)
+ * Show all channels, including when the controller still sends an old page code. */
+static void install_ch_page(uint8_t kind)
 {
     char buf[32];
-    uint8_t i, first = ui_param_first(page);
+    uint8_t ch;
     uint16_t cx, y, w;
     device_t *d;
 
-    ui_param_header(page, (kind == 3u) ? "信号" : "电压");
-    for (i = 0u; i < 10u; i++)
+    ui_param_header((kind == 3u) ? "信号" : "电压");
+    for (ch = 0u; ch < MAX_CH_NUM; ch++)
     {
-        uint8_t ch = (uint8_t)(first + i);
-        uint8_t size = HOME_TEXT_SIZE;
-        cx = (uint16_t)((i / HOME_ROWS) ? HOME_CELL_R_X : HOME_CELL_L_X);
-        y = (uint16_t)(HOME_GRID_TOP + 18u + HOME_ROW_H * (i % HOME_ROWS));
+        cx = (uint16_t)((ch / PARAM_ROWS) ? HOME_CELL_R_X : HOME_CELL_L_X);
+        y = (uint16_t)(PARAM_GRID_TOP + 11u + PARAM_ROW_H * (ch % PARAM_ROWS));
         d = &CH_com_buf[ch];
-        ui_main_channel_badge(cx, y, (uint8_t)(ch + 1u));
+        ui_param_number(cx, y, (uint8_t)(ch + 1u));
         if (!(d->valid && d->data_re_flag)) strcpy(buf, "--");
         else if (kind == 3u) sprintf(buf, "%d dBm", (int)(int8_t)d->rssi);
         else sprintf(buf, "%d.%d V", d->voltage / 10, d->voltage % 10);
-        w = ui_text_width(buf, size);
-        if (HOME_NUM_W + 8u + w > HOME_DATA_RIGHT)
-        {
-            size = 16u;
-            w = ui_text_width(buf, size);
-        }
-        ui_text_draw((uint16_t)(cx + HOME_DATA_RIGHT - w), y, buf, size);
+        w = ui_text_width(buf, PARAM_TEXT_SIZE);
+        ui_text_draw((uint16_t)(cx + HOME_DATA_RIGHT - w), y, buf, PARAM_TEXT_SIZE);
     }
 }
 
 void install_Control(void)
 {
     uint8_t re = Data_list1.UI_main.re_flag;
-    if (re == 3) { install_ch_page(3, Data_list1.UI_main.chu_num2); return; }
-    if (re == 4) { install_ch_page(4, Data_list1.UI_main.chu_num2); return; }
+    if (re == 3) { install_ch_page(3); return; }
+    if (re == 4) { install_ch_page(4); return; }
     ui_menu_control(117u, 62u, 258u, 27u, "设备信号", ui_menu_selected(0u), 0u);
     ui_menu_control(117u, 99u, 258u, 27u, "设备电压", ui_menu_selected(1u), 0u);
     ui_menu_button(1u, "返回", ui_menu_selected(2u));

@@ -80,7 +80,7 @@ def report(phases: list[str], output: Path, scope: str) -> dict:
                     reference = (out / (prefix + "1.pgm")).read_bytes()
                     equivalents.append({"phase": phase, "group": prefix, "cases": group,
                                         "page_mapping_valid": all(((out / (name + ".pgm")).read_bytes() == reference) ==
-                                                                  (not name.endswith("_2")) for name in group)})
+                                                                  (phase == "after" or not name.endswith("_2")) for name in group)})
         compile_text = (out / "compile.log").read_text(encoding="utf-8", errors="replace")
         warnings = re.findall(r"\bwarning (C\d+):", compile_text)
         errors = re.findall(r"\berror ((?:C|LNK)\d+):", compile_text)
@@ -127,7 +127,7 @@ def report(phases: list[str], output: Path, scope: str) -> dict:
     if scope in ("menus", "unified"):
         lines += [("统一字体范围允许全部页面文字变化，不要求旧字体逐像素一致；使用真实渲染、输入不改写、重绘一致性和文字布局检查。" if scope == "unified" else "菜单范围允许二三级菜单视觉变化，要求所有 home_*、message_*、save_message_tick*、power_off_message_tick10 和 restart_confirmation 前后逐像素一致。"), "",
                   "额外菜单用例覆盖所有合法焦点、子页按钮、0/32 个绑定、三条轮显的全部 11 页、29 字节最长名称、0/121/122/65535 上传地址、参数极值、RSSI -128/-1/0/127 和电压 0/0.9/1.0/9.9/10.0/25.5 V、20 通道空/稀疏/完整数据，以及交替页面。", "",
-                  "名称、RSSI、电压页以 chu_num2=0/1/2/65535 绘制；2对应11–20，其余对应1–10。", ""]
+                  "名称、RSSI、电压页：after 一屏显示20通道，左列1–10、右列11–20，11px文字与12px行距；只有返回按钮，无下一页和分页标记。chu_num2=0/1/2/65535 的画面要求一致；before仍核对原有两页映射。检查通道1/10/11/20的独立数值、20个等待或零值、19个零值与1个未收通道，以及进入/旧下一页/退出/重入帧序列。", ""]
         for group in equivalents:
             lines.append(f"- {group['phase']} {group['group']}: {'一致' if group['page_mapping_valid'] else '存在差异'}。")
         lines.append("")

@@ -111,19 +111,19 @@ def check(output, home_only=False):
     require(count("home_partial_received", "--") == 1,
             "home_partial_received: only unread channel waits")
     for kind, zero in (() if home_only else (("signal", "0 dBm"), ("voltage", "0.0 V"))):
-        require(count(f"menu_{kind}_waiting", "--") == 10,
-                kind + ": ten unread values wait")
-        require(count(f"menu_{kind}_received_zero", zero) == 10,
-                kind + ": ten actual zeros visible")
-        require(count(f"menu_{kind}_partial_received", zero) == 9 and
-                count(f"menu_{kind}_partial_received", "--") == 1,
+        require(count(f"menu_{kind}_waiting", "--") == 20,
+                kind + ": twenty unread values wait")
+        require(count(f"menu_{kind}_received_zero", zero) == 20,
+                kind + ": twenty actual zeros visible")
+        require(count(f"menu_{kind}_partial_received", zero) == 18 and
+                count(f"menu_{kind}_partial_received", "--") == 2,
                 kind + ": partial receipt remains independent")
     if not home_only:
-        require(sum(row[3].startswith("SW_") for row in records["menu_names_waiting"]) == 10,
+        require(sum(row[3].startswith("SW_") for row in records["menu_names_waiting"]) == 20,
                 "binding names available before telemetry")
         lower_names = [row for case in ("menu_names_descenders", "menu_names_descenders_page2")
                        for row in records[case] if "g_jpqy" in row[3]]
-        require(len(lower_names) == 2 and all(row[1] == 158 and row[2] == 18 for row in lower_names),
+        require(len(lower_names) == 4 and all(row[1] == 157 and row[2] == 11 for row in lower_names),
                 "last-row descenders leave space above bottom frame")
     result = {"checks": len(checks), "failures": failures}
     (output / "text_contract.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n",
