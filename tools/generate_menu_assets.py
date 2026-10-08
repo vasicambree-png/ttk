@@ -67,7 +67,31 @@ def source_characters():
     return set(re.findall(r"[\u3400-\u9fff\uff00-\uffef]", literals))
 
 
-def return_artwork(reference, font_path):
+def warning_glyph(path, size):
+    """Native hinted Song glyph keeps the dense upper strokes separated."""
+    image = Image.new("L", (size, size + 2), 0)
+    draw = ImageDraw.Draw(image)
+    draw.fontmode = "1"
+    draw.text((0, size - 1), "警", anchor="ls",
+              font=ImageFont.truetype(str(path), size), fill=255)
+    return image.convert("1")
+
+
+def return_slogan(font_path, lishu_path):
+    # Keep the existing advances and footer geometry; change only letterforms.
+    text = "精确 稳定 可靠"
+    widths = [glyph(char, font_path, 18).width for char in text]
+    image = Image.new("1", (sum(widths), 20), 0)
+    x = 0
+    for char, advance in zip(text, widths):
+        part = glyph(char, lishu_path, 18)
+        if char != " ":
+            image.paste(part, (x + (advance - part.width) // 2, 0))
+        x += advance
+    return image
+
+
+def return_artwork(reference, font_path, lishu_path):
     """Replace ordinary text while preserving the brand, icons and rules.
 
     Bounds below use the full 384x168 reference coordinates. The lower
@@ -82,7 +106,8 @@ def return_artwork(reference, font_path):
             ((163, 141, 329, 155), "精确 · 稳定 · 可靠", 11, 153)):
         left, top, right, bottom = bounds
         page.paste(0, (left - 113, top - 1, right - 113, bottom - 1))
-        images = [glyph(char, font_path, size) for char in text]
+        face = lishu_path if text == "安全相伴" else font_path
+        images = [glyph(char, face, size) for char in text]
         width = sum(image.width for image in images)
         if width > right - left:
             raise ValueError(f"Return-home text exceeds its region: {text}")
@@ -96,6 +121,8 @@ def return_artwork(reference, font_path):
 def main():
     parser = ArgumentParser(description=__doc__)
     parser.add_argument("--font", type=Path, default=Path("C:/Windows/Fonts/msyhbd.ttc"))
+    parser.add_argument("--lishu-font", type=Path, default=Path("C:/Windows/Fonts/SIMLI.TTF"))
+    parser.add_argument("--warning-font", type=Path, default=Path("C:/Windows/Fonts/simsun.ttc"))
     args = parser.parse_args()
     chars = sorted(set(TEXT.replace("\n", "") + "°·") |
                    {chr(code) for code in range(32, 127)} | source_characters())
@@ -103,7 +130,9 @@ def main():
              "#ifndef UI_MENU_ASSETS_H\n#define UI_MENU_ASSETS_H\n#include <stdint.h>\n",
              "typedef struct { uint16_t code; uint8_t width; const uint8_t *bits; } ui_menu_glyph_t;\n"]
     for size in (11, 14, 16, 18):
-        images = [(char, glyph(char, args.font, size)) for char in chars]
+        images = [(char, warning_glyph(args.warning_font, size)
+                   if char == "警" and size in (14, 16)
+                   else glyph(char, args.font, size)) for char in chars]
         for char, image in images:
             parts.append(array(f"ui_menu_{size}_{ord(char):04x}", image))
         parts.append(f"static const ui_menu_glyph_t ui_menu_glyphs_{size}[] = {{\n")
@@ -132,8 +161,11 @@ def main():
     if reference.size != (1152, 504):
         raise ValueError("Return-home reference must be the supplied 3x 384x168 image")
     reference = reference.resize((384, 168), Image.Resampling.NEAREST)
-    return_page = return_artwork(reference, args.font)
+    return_page = return_artwork(reference, args.font, args.lishu_font)
     parts.append(array("ui_menu_return_page", return_page))
+    slogan = return_slogan(args.font, args.lishu_font)
+    parts.append(array("ui_menu_return_slogan", slogan))
+    parts.append(f"#define UI_RETURN_SLOGAN_WIDTH {slogan.width}u\n")
     parts.append("static const uint8_t *const ui_menu_nav_icons[] = {\n    " +
                  ", ".join(f"ui_menu_nav_{i}" for i in range(8)) + "\n};\n")
     parts.append("static const uint8_t *const ui_menu_title_icons[] = {\n    " +

@@ -1643,7 +1643,15 @@ void return_main_Control(void)
     u8g2_SetDrawColor(&u8g2, 1u);
     u8g2_DrawBox(&u8g2, 119u, 134u, 254u, 26u);
     u8g2_SetDrawColor(&u8g2, 0u);
-    ui_text_draw(slogan_x, 155u, slogan, 18u);
+    /* Dedicated LiSu artwork preserves the normal text advances. */
+    u8g2_DrawXBMP(&u8g2, slogan_x, 138u, UI_RETURN_SLOGAN_WIDTH, 20u,
+                  ui_menu_return_slogan);
+#ifdef UI_PREVIEW
+    {
+        extern void ui_preview_text(uint16_t, uint16_t, const char *, uint8_t, unsigned);
+        ui_preview_text(slogan_x, 155u, slogan, 18u, 0u);
+    }
+#endif
     ui_text_draw(version_x, 155u, version, 18u);
 }
 
