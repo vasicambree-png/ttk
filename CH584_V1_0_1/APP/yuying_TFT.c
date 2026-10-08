@@ -938,7 +938,7 @@ static void binding_device_list_page(uint8_t rank3)
     u8g2_DrawXBMP(&u8g2, 10u, 6u, 13u, 13u, ui_menu_nav_icons[2]);
     ui_menu_text(29u, 20u, "设备绑定", 18u);
     sprintf(line, "总设备数:%d台", g_binding_count);
-    ui_text_draw(108u, 16u, line, 14u);
+    ui_text_draw(108u, 20u, line, 18u);
     n = g_binding_count;
     if (n > MAX_CH_NUM) n = MAX_CH_NUM;
     rows_per_column = (uint8_t)((n + 1u) / 2u);
@@ -979,7 +979,7 @@ static void binding_scan_page(uint8_t rank3)
     n = g_binding_count;
     if (n > MAX_BINDING_NUM) n = MAX_BINDING_NUM;
     sprintf(number, "已绑定设备:%u台", (unsigned int)n);
-    ui_text_draw(108u, 16u, number, 14u);
+    ui_text_draw(108u, 20u, number, 18u);
     /* Normal distinct devices occupy at least one of twenty channels. Keep
      * every record visible even if a restored table contains duplicates. */
     rows_per_column = n <= MAX_CH_NUM ? (uint8_t)((n + 1u) / 2u) : 8u;
