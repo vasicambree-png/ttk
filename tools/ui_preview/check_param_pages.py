@@ -50,43 +50,56 @@ def check(output):
             continue
         name = case["case"]
         rows = records[name]
-        data = [row for row in rows if 5 <= row[1] < 137]
+        data = [row for row in rows if 22 <= row[1] < 164]
         numbers = [row for row in data if row[3].isdigit() and row[2] == 11 and
-                   (14 <= row[0] < 34 or 203 <= row[0] < 223)]
+                   (13 <= row[0] < 33 or 202 <= row[0] < 222)]
         require([int(row[3]) for row in numbers] == list(range(1, 21)),
                 name + ": all twenty ordered channel numbers")
         for i, row in enumerate(numbers):
-            require(row[1] == 16 + 13 * (i % 10) and
-                    ((14 <= row[0] < 34) if i < 10 else (203 <= row[0] < 223)),
+            require(row[1] == 33 + 14 * (i % 10) and
+                    ((13 <= row[0] < 33) if i < 10 else (202 <= row[0] < 222)),
                     name + ": ten rows per column " + row[3])
-            left = 14 if i < 10 else 203
+            left = 13 if i < 10 else 202
             require(row[0] == left + (16 - width(row[3])) // 2,
                     name + ": number centered in its gutter " + row[3])
         label = {3: "信号:", 4: "电压:", 5: "名称:"}[int(case["subpage"])]
         require(sum(row[3] == label for row in data) == 0,
                 name + ": no repeated row label")
-        require(len(data) == 40 and all(row[1] in range(16, 134, 13) and row[2] == 11 for row in data),
-                name + ": forty data fields at eleven pixels and thirteen-pixel pitch")
-        require(len(rows) == 41 and not any(row[3] in
-                ("信息汇总", "安装调试", "设备信号", "设备电压", "名称", "信号", "电压") for row in rows),
-                name + ": no top title strip")
+        require(len(data) == 40 and all(row[1] in range(33, 160, 14) and row[2] == 11 for row in data),
+                name + ": forty data fields at eleven pixels and fourteen-pixel pitch")
+        title = "信息汇总" if kind == 5 else "安装调试"
+        subtitle = {3: "信号", 4: "电压", 5: "名称"}[kind]
+        require(len(rows) == 43 and (29, 16, 14, title) in rows and
+                (200, 16, 11, subtitle) in rows,
+                name + ": compact title and subtitle above data")
+        require(sum(row[3] == "返回" and row[0] >= 298 and row[1:3] == (16, 14)
+                    for row in rows) == 1,
+                name + ": compact return at upper right")
         for row in data:
             if row in numbers:
                 continue
-            left = 14 if row[0] < 190 else 203
-            require(row[0] == left + 24 + (142 - width(row[3])) // 2,
+            left = 13 if row[0] < 190 else 202
+            require(row[0] == left + 24 + (144 - width(row[3])) // 2,
                     name + ": data centered in its slot " + row[3])
         require(sum(row[3] == "返回" for row in rows) == 1 and
                 sum(row[3] == "下一页" for row in rows) == 0,
                 name + ": one return action and no next-page action")
         require(all("1/2" not in row[3] and "2/2" not in row[3] for row in rows),
                 name + ": no page indicator")
-        data_ink = [row for row in inks[name] if 5 <= row[1] < 137 and row[3] >= 0]
+        data_ink = [row for row in inks[name] if 22 <= row[1] < 164 and row[3] >= 0]
         require(len(data_ink) == len(data), name + ": visible ink for every data field")
+        header_ink = [row for row in inks[name] if row[1] == 16 and row[3] >= 0]
+        require(len(header_ink) == 3 and all(7 <= row[3] <= row[5] <= 376 and
+                2 <= row[4] <= row[6] <= 20 for row in header_ink),
+                name + ": header ink fits compressed band")
+        for i, a in enumerate(header_ink):
+            for b in header_ink[i + 1:]:
+                require(a[5] < b[3] or b[5] < a[3],
+                        name + ": header title/subtitle/return remain separate")
         for row in data_ink:
             x, baseline, size, x0, y0, x1, y1, text = row
-            left, right = (8, 186) if x < 190 else (197, 375)
-            top = 6 + 13 * ((baseline - 16) // 13)
+            left, right = (7, 187) if x < 190 else (196, 376)
+            top = 23 + 14 * ((baseline - 33) // 14)
             require(left <= x0 <= x1 <= right and top <= y0 <= y1 <= top + 12,
                     name + ": ink inside cell " + text)
         for i, a in enumerate(data_ink):
@@ -113,10 +126,10 @@ def check(output):
                         4: {1: "1.1 V", 10: "4.2 V", 11: "7.3 V", 20: "10.4 V"},
                         5: {1: "SW_CH01", 10: "SW_CH10", 11: "SW_CH11", 20: "SW_CH20"}}[int(case["subpage"])]
             for channel, text in expected.items():
-                baseline = 16 + 13 * ((channel - 1) % 10)
-                left = 14 if channel <= 10 else 203
+                baseline = 33 + 14 * ((channel - 1) % 10)
+                left = 13 if channel <= 10 else 202
                 require(any(row[3] == text and row[1] == baseline and
-                            left + 24 <= row[0] < left + 166 for row in data),
+                            left + 24 <= row[0] < left + 168 for row in data),
                         name + ": channel " + str(channel) + " value in its own row")
     for label in ("signal", "voltage", "names"):
         images = [(output / "after" / f"menu_{label}_page_{page}.pgm").read_bytes()
@@ -143,8 +156,9 @@ def check(output):
             full_data = int(case["menu"]) == 3 and int(case["subpage"]) in (3, 4) or \
                         int(case["menu"]) == 6 and int(case["subpage"]) == 5
             if not full_data:
-                require(not any(113 <= row[0] and row[1] <= 42 for row in records[case["case"]]),
-                        case["case"] + ": third-level detail title removed")
+                titles = ("地址分区", "组网测试", "设备绑定", "安装调试", "上传设置", "其他设置", "信息汇总", "返回主页")
+                require((141, 20, 14, titles[int(case["menu"])]) in records[case["case"]],
+                        case["case"] + ": compact third-level detail title restored")
     result = {"checks": len(checks), "failures": failures}
     (output / "param_page_contract.json").write_text(
         json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

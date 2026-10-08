@@ -96,7 +96,7 @@ const uint8_t MAIN_LEN = sizeof(Main_List) / sizeof(MENU_LIST);  //�����
  * 普通文字统一为微软雅黑粗体，使用 ui_menu_assets.h 的 11/14/16/18 字模；
  * 首页静态标题同为微软雅黑粗体 20px。Logo 保留原图字形。
  * 实际页面文本由 ui_text_draw 绘制，不设置 u8g2 字库，避免链接未使用的全中文字库。
- * 20通道三级页同屏两列各10条、11px正文和13px行距；轮显列表用11px和13px行距。
+ * 20通道三级页同屏两列各10条、11px正文和14px行距；轮显列表用11px和13px行距。
  * ================================================================== */
 
 /* 通道类型显示表（下标 = Sensor_Tpye 数值，与 STM32 的 Data_tpye 逐项一致）
@@ -823,6 +823,14 @@ static void ui_menu_field(uint16_t y, const char *label, const char *value,
     u8g2_SetDrawColor(&u8g2, 0);
 }
 
+static void ui_menu_detail_title(uint8_t menu)
+{
+    u8g2_SetDrawColor(&u8g2, 0u);
+    u8g2_DrawXBMP(&u8g2, 118u, 8u, 13u, 13u, ui_menu_nav_icons[menu]);
+    ui_menu_text(141u, 20u, Menu_List[menu].name, 14u);
+    u8g2_DrawHLine(&u8g2, 119u, 26u, 254u);
+}
+
 static void ui_menu_header(uint8_t menu)
 {
     if (menu >= MAIN_LEN) menu = 0u;
@@ -830,8 +838,11 @@ static void ui_menu_header(uint8_t menu)
     u8g2_DrawBox(&u8g2, 113u, 1u, 266u, 166u);
     u8g2_SetDrawColor(&u8g2, 0);
     u8g2_DrawRFrame(&u8g2, 114u, 5u, 264u, 159u, 4u);
-    /* Third-level pages keep their controls but omit the top title strip. */
-    if (Data_list1.menu_rank == 3u) return;
+    if (Data_list1.menu_rank == 3u)
+    {
+        ui_menu_detail_title(menu);
+        return;
+    }
     u8g2_DrawXBMP(&u8g2, 118u, 10u, 29u, 27u, ui_menu_title_icons[menu]);
     ui_menu_text(156u, 31u, Menu_List[menu].name, 18u);
     u8g2_DrawHLine(&u8g2, 119u, 42u, 254u);
@@ -988,15 +999,15 @@ void binding_Control(void)
  * Drawing never changes page state, binding metadata or received values.
  * Home keeps its separate two-page layout. */
 #define PARAM_ROWS         10u
-#define PARAM_GRID_TOP     5u
-#define PARAM_ROW_H        13u
-#define PARAM_GRID_H       132u
+#define PARAM_GRID_TOP     22u
+#define PARAM_ROW_H        14u
+#define PARAM_GRID_H       142u
 #define PARAM_TEXT_SIZE    11u
-#define PARAM_CELL_L_X     14u
-#define PARAM_CELL_R_X     203u
+#define PARAM_CELL_L_X     13u
+#define PARAM_CELL_R_X     202u
 #define PARAM_NUMBER_W     16u
 #define PARAM_NAME_OFFSET  24u
-#define PARAM_DATA_W       142u
+#define PARAM_DATA_W       144u
 
 static void ui_param_number(uint16_t x, uint16_t baseline, uint8_t channel)
 {
@@ -1014,21 +1025,29 @@ static void ui_param_value(uint16_t x, uint16_t baseline, const char *text)
                   baseline, text, PARAM_TEXT_SIZE);
 }
 
-static void ui_param_frame(void)
+static void ui_param_frame(const char *subtitle)
 {
     uint8_t i;
     u8g2_SetDrawColor(&u8g2, 1u);
     u8g2_DrawBox(&u8g2, 1u, 1u, 382u, 166u);
     u8g2_SetDrawColor(&u8g2, 0u);
     u8g2_DrawRFrame(&u8g2, 2u, 1u, 380u, 166u, 4u);
-    ui_menu_control(150u, 140u, 84u, 22u, "返回", 1u, 1u);
-    ui_main_cut_frame(7u, PARAM_GRID_TOP, 181u, PARAM_GRID_H, 4u);
-    ui_main_cut_frame(196u, PARAM_GRID_TOP, 181u, PARAM_GRID_H, 4u);
+    u8g2_DrawXBMP(&u8g2, 10u, 6u, 13u, 13u, ui_menu_nav_icons[UI_Select]);
+    ui_menu_text(29u, 16u, Menu_List[UI_Select].name, 14u);
+    ui_menu_text(200u, 16u, subtitle, 11u);
+    /* Compact header: preserve the original upper-right return position. */
+    u8g2_DrawBox(&u8g2, 298u, 3u, 75u, 18u);
+    u8g2_SetDrawColor(&u8g2, 1u);
+    ui_menu_text((uint16_t)(298u + (75u - ui_menu_text_width("返回", 14u)) / 2u),
+                  16u, "返回", 14u);
+    u8g2_SetDrawColor(&u8g2, 0u);
+    ui_main_cut_frame(6u, PARAM_GRID_TOP, 183u, PARAM_GRID_H, 4u);
+    ui_main_cut_frame(195u, PARAM_GRID_TOP, 183u, PARAM_GRID_H, 4u);
     for (i = 1u; i < PARAM_ROWS; i++)
     {
         uint16_t y = (uint16_t)(PARAM_GRID_TOP + PARAM_ROW_H * i + 1u);
-        u8g2_DrawHLine(&u8g2, 7u, y, 181u);
-        u8g2_DrawHLine(&u8g2, 196u, y, 181u);
+        u8g2_DrawHLine(&u8g2, 6u, y, 183u);
+        u8g2_DrawHLine(&u8g2, 195u, y, 183u);
     }
 }
 
@@ -1038,7 +1057,7 @@ static void summary_name_page(void)
     uint16_t cx, y, name_x;
     device_t *d;
 
-    ui_param_frame();
+    ui_param_frame("名称");
     for (ch = 0u; ch < MAX_CH_NUM; ch++)
     {
         cx = (uint16_t)((ch / PARAM_ROWS) ? PARAM_CELL_R_X : PARAM_CELL_L_X);
@@ -1394,7 +1413,7 @@ static void install_ch_page(uint8_t kind)
     uint16_t cx, y;
     device_t *d;
 
-    ui_param_frame();
+    ui_param_frame((kind == 3u) ? "信号" : "电压");
     for (ch = 0u; ch < MAX_CH_NUM; ch++)
     {
         cx = (uint16_t)((ch / PARAM_ROWS) ? PARAM_CELL_R_X : PARAM_CELL_L_X);
@@ -1558,10 +1577,11 @@ void return_main_Control(void)
     u8g2_DrawXBMP(&u8g2, 113u, 1u, 266u, 166u, ui_menu_return_page);
     if (Data_list1.menu_rank == 3u)
     {
-        /* This title is baked into the artwork; hide only its top strip. */
+        /* Replace the baked-in title strip with the compact detail header. */
         u8g2_SetDrawColor(&u8g2, 1u);
         u8g2_DrawBox(&u8g2, 118u, 6u, 256u, 37u);
         u8g2_SetDrawColor(&u8g2, 0u);
+        ui_menu_detail_title(7u);
     }
 }
 

@@ -123,7 +123,7 @@ def check(output, home_only=False):
                 "binding names available before telemetry")
         lower_names = [row for case in ("menu_names_descenders", "menu_names_descenders_page2")
                        for row in records[case] if "g_jpqy" in row[3]]
-        require(len(lower_names) == 4 and all(row[1] == 133 and row[2] == 11 for row in lower_names),
+        require(len(lower_names) == 4 and all(row[1] == 159 and row[2] == 11 for row in lower_names),
                 "last-row descenders leave space above bottom frame")
     result = {"checks": len(checks), "failures": failures}
     (output / "text_contract.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n",
