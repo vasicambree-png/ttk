@@ -527,10 +527,13 @@ void UI_Control(data_LIST *list)
 #define HOME_HEADER_BATTERY_RIGHT 376u
 #define HOME_HEADER_BATTERY_BASE  29u
 #define HOME_HEADER_BATTERY_SIZE  16u
+#define HOME_HEADER_BATTERY_MAX_W 58u
 #define HOME_HEADER_STATE_RIGHT   372u
 #define HOME_HEADER_STATE_BASE    23u
-#define HOME_WIRELESS_TOP         18u
-#define HOME_WIRELESS_GAP         2u
+#define HOME_WIRELESS_TOP         10u
+#define HOME_WIRELESS_COMPACT_TOP 14u
+#define HOME_WIRELESS_FULL_MAX_W  46u
+#define HOME_WIRELESS_GAP         3u
 #define HOME_STATUS_BASELINE      44u
 #define HOME_STATUS_LEFT          108u
 #define HOME_STATUS_HOST_RIGHT    366u
@@ -623,13 +626,18 @@ static void ui_main_meta_draw(uint16_t x, uint16_t baseline, const char *text, u
     ui_text_draw(x, baseline, text, size);
 }
 
-static void ui_main_draw_wireless(uint8_t signal, uint16_t voltage_x)
+static void ui_main_draw_wireless(uint8_t signal, uint16_t voltage_x, uint16_t voltage_width)
 {
     /* This is a display-level convention for the controller's LoRa field. */
     uint8_t icon = signal <= 3u ? signal : 4u;
-    u8g2_DrawXBMP(&u8g2, (uint16_t)(voltage_x - UI_WIRELESS_WIDTH - HOME_WIRELESS_GAP),
-                  HOME_WIRELESS_TOP, UI_WIRELESS_WIDTH, UI_WIRELESS_HEIGHT,
-                  ui_wireless_icons[icon]);
+    if (voltage_width <= HOME_WIRELESS_FULL_MAX_W)
+        u8g2_DrawXBMP(&u8g2, (uint16_t)(voltage_x - UI_WIRELESS_WIDTH - HOME_WIRELESS_GAP),
+                      HOME_WIRELESS_TOP, UI_WIRELESS_WIDTH, UI_WIRELESS_HEIGHT,
+                      ui_wireless_icons[icon]);
+    else
+        u8g2_DrawXBMP(&u8g2, (uint16_t)(voltage_x - UI_WIRELESS_COMPACT_WIDTH - HOME_WIRELESS_GAP),
+                      HOME_WIRELESS_COMPACT_TOP, UI_WIRELESS_COMPACT_WIDTH, UI_WIRELESS_COMPACT_HEIGHT,
+                      ui_wireless_compact_icons[icon]);
 }
 
 /* The optional device-count unit has its own explicit pixel gap. */
@@ -684,14 +692,21 @@ void UI_Main_Display(data_LIST *pData)
     /* Page one owns the voltage and controller wireless indicator. */
     if (page == 1u)
     {
+        uint8_t voltage_size = HOME_HEADER_BATTERY_SIZE;
         sprintf(buf, "%d.%d%dV",
                 pData->UI_main.vbat / 100, pData->UI_main.vbat % 100 / 10,
                 pData->UI_main.vbat % 100 % 10);
         w = ui_text_width(buf, HOME_HEADER_BATTERY_SIZE);
+        /* Reserve the enlarged icon and its gap even for uint16_t extremes. */
+        if (w > HOME_HEADER_BATTERY_MAX_W)
+        {
+            voltage_size = 14u;
+            w = ui_text_width(buf, voltage_size);
+        }
         ui_main_meta_draw((uint16_t)(HOME_HEADER_BATTERY_RIGHT - w),
-                          HOME_HEADER_BATTERY_BASE, buf, HOME_HEADER_BATTERY_SIZE);
+                          HOME_HEADER_BATTERY_BASE, buf, voltage_size);
         ui_main_draw_wireless(pData->UI_main.Lora_rssi,
-                              (uint16_t)(HOME_HEADER_BATTERY_RIGHT - w));
+                              (uint16_t)(HOME_HEADER_BATTERY_RIGHT - w), w);
         if (pData->UI_main.send_host_num == 122u)      sprintf(send_str, "分站");
         else if (pData->UI_main.send_host_num == 121u) sprintf(send_str, "无");
         else if (pData->UI_main.send_host_num == 0u)   sprintf(send_str, "中继");
