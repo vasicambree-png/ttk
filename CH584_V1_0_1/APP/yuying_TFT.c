@@ -907,6 +907,15 @@ void UI_Menu_Display(void)
     ui_menu_header(UI_Select);
     Menu_List[UI_Select].function();
 
+    /* Secondary menus use a white right panel with black titles/controls.
+     * XOR reverses the completed artwork, including the return-home bitmap,
+     * without changing the left navigation or any third-level subpage. */
+    if (Data_list1.menu_rank == 2u)
+    {
+        u8g2_SetDrawColor(&u8g2, 2u);
+        u8g2_DrawBox(&u8g2, 113u, 1u, 266u, 166u);
+    }
+
 restore_style:
     u8g2_SetBitmapMode(&u8g2, bitmap_mode);
     u8g2_SetFontMode(&u8g2, font_mode);
