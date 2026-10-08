@@ -884,7 +884,7 @@ void UI_Menu_Display(void)
     if (Data_list1.menu_rank == 3)
     {
         uint8_t re_top = Data_list1.UI_main.re_flag;
-        if (UI_Select == 2u && re_top == 1u)
+        if (UI_Select == 2u && (re_top == 1u || re_top == 2u))
         {
             binding_Control();
             goto restore_style;
@@ -949,8 +949,8 @@ static void binding_device_list_page(uint8_t rank3)
     u8g2_DrawRFrame(&u8g2, 2u, 1u, 380u, 166u, 4u);
     u8g2_DrawXBMP(&u8g2, 10u, 6u, 13u, 13u, ui_menu_nav_icons[2]);
     ui_menu_text(29u, 16u, "设备绑定", 14u);
-    sprintf(line, "总设备数:%d", g_binding_count);
-    ui_text_draw(108u, 16u, line, 11u);
+    sprintf(line, "总设备数:%d台", g_binding_count);
+    ui_text_draw(108u, 16u, line, 14u);
     ui_menu_control(208u, 3u, 75u, 18u, "解绑", (uint8_t)(rank3 == 0u), 1u);
     ui_menu_control(298u, 3u, 75u, 18u, "返回", (uint8_t)(rank3 != 0u), 1u);
     ui_main_cut_frame(6u, 22u, 183u, 142u, 4u);
@@ -986,20 +986,33 @@ static void binding_device_list_page(uint8_t rank3)
 static void binding_scan_page(uint8_t rank3)
 {
     uint8_t i, n;
+    uint8_t fullscreen = (uint8_t)(Data_list1.menu_rank == 3u);
+    uint16_t name_x = fullscreen ? 14u : 122u;
+    uint16_t name_y = fullscreen ? 60u : 71u;
     const char *nm;
-    ui_draw(122u, 56u, "扫描到的蓝牙名称");
+    if (fullscreen)
+    {
+        u8g2_SetDrawColor(&u8g2, 1u);
+        u8g2_DrawBox(&u8g2, 1u, 1u, 382u, 166u);
+        u8g2_SetDrawColor(&u8g2, 0u);
+        u8g2_DrawRFrame(&u8g2, 2u, 1u, 380u, 166u, 4u);
+        u8g2_DrawXBMP(&u8g2, 10u, 6u, 13u, 13u, ui_menu_nav_icons[2]);
+        ui_menu_text(29u, 16u, "设备绑定", 14u);
+    }
+    ui_draw(name_x, fullscreen ? 42u : 56u, "扫描到的蓝牙名称");
     n = scan_name_cache_count();
-    if (n == 0u) ui_draw(122u, 71u, "--");
+    if (n == 0u) ui_draw(name_x, name_y, "--");
     for (i = 0u; i < n && i < 6u; i++)
     {
         nm = scan_name_cache_name(i);
         if (nm != NULL)
-            ui_draw_name_size(122u, (uint16_t)(71u + 13u * i), (const uint8_t *)nm, 246u, 11u);
-        else ui_text_draw(122u, (uint16_t)(71u + 13u * i), "--", 11u);
+            ui_draw_name_size(name_x, (uint16_t)(name_y + 13u * i), (const uint8_t *)nm,
+                              fullscreen ? 354u : 246u, 11u);
+        else ui_text_draw(name_x, (uint16_t)(name_y + 13u * i), "--", 11u);
     }
-    ui_menu_control(117u, 140u, 128u, 22u, "保存目前设备",
+    ui_menu_control(fullscreen ? 6u : 117u, 140u, fullscreen ? 183u : 128u, 22u, "保存目前设备",
                      (uint8_t)(Data_list1.menu_rank == 3u && rank3 == 0u), 1u);
-    ui_menu_control(247u, 140u, 128u, 22u, "返回",
+    ui_menu_control(fullscreen ? 195u : 247u, 140u, fullscreen ? 183u : 128u, 22u, "返回",
                      (uint8_t)(Data_list1.menu_rank == 3u && rank3 != 0u), 1u);
 }
 
@@ -1060,7 +1073,7 @@ static void ui_param_value(uint16_t x, uint16_t baseline, const char *text)
                   baseline, text, PARAM_TEXT_SIZE);
 }
 
-static void ui_param_frame(const char *subtitle)
+static void ui_param_frame(void)
 {
     uint8_t i;
     u8g2_SetDrawColor(&u8g2, 1u);
@@ -1069,7 +1082,6 @@ static void ui_param_frame(const char *subtitle)
     u8g2_DrawRFrame(&u8g2, 2u, 1u, 380u, 166u, 4u);
     u8g2_DrawXBMP(&u8g2, 10u, 6u, 13u, 13u, ui_menu_nav_icons[UI_Select]);
     ui_menu_text(29u, 16u, Menu_List[UI_Select].name, 14u);
-    ui_menu_text(200u, 16u, subtitle, 11u);
     /* Compact header: preserve the original upper-right return position. */
     u8g2_DrawBox(&u8g2, 298u, 3u, 75u, 18u);
     u8g2_SetDrawColor(&u8g2, 1u);
@@ -1092,7 +1104,7 @@ static void summary_name_page(void)
     uint16_t cx, y, name_x;
     device_t *d;
 
-    ui_param_frame("名称");
+    ui_param_frame();
     for (ch = 0u; ch < MAX_CH_NUM; ch++)
     {
         cx = (uint16_t)((ch / PARAM_ROWS) ? PARAM_CELL_R_X : PARAM_CELL_L_X);
@@ -1448,7 +1460,7 @@ static void install_ch_page(uint8_t kind)
     uint16_t cx, y;
     device_t *d;
 
-    ui_param_frame((kind == 3u) ? "信号" : "电压");
+    ui_param_frame();
     for (ch = 0u; ch < MAX_CH_NUM; ch++)
     {
         cx = (uint16_t)((ch / PARAM_ROWS) ? PARAM_CELL_R_X : PARAM_CELL_L_X);

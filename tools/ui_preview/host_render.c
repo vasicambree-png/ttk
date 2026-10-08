@@ -563,6 +563,7 @@ static void render_menu_cases(void) {
     }
     init_data(0);
     render("binding_left_stale_1", 2, 2, 1, 0, 1);
+    render("binding_left_stale_2", 2, 2, 2, 0, 1);
     init_data(1);
     longest_names();
     render("menu_binding_full", 3, 2, 0, 0, 1);
