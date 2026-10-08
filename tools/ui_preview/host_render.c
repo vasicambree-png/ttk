@@ -561,6 +561,41 @@ static void render_menu_cases(void) {
             render(name, 3, 2, 1, 0, 1);
         }
     }
+    /* Unbind lists use the full normal 20-channel capacity without timer paging.
+     * The 32-record case verifies defensive clipping while retaining the raw count. */
+    {
+        static const unsigned counts[] = {0, 1, 7, 10, 11, 20, 32};
+        static const unsigned times[] = {0, 4, 8, 12, 65535};
+        unsigned k, cycle;
+        for (k = 0; k < sizeof(counts) / sizeof(counts[0]); ++k) {
+            init_data(0);
+            n = counts[k];
+            g_binding_count = (uint8_t)n;
+            for (cycle = 0; cycle < sizeof(times) / sizeof(times[0]); ++cycle) {
+                g_name_chk_sec = times[cycle];
+                for (s = 0; s < 2; ++s) {
+                    snprintf(name, sizeof(name), "subpage_unbind_count_%u_time_%u_button_%u", n, times[cycle], s);
+                    render(name, 3, 2, 1, s, 1);
+                }
+            }
+        }
+        for (mode = 0; mode < 3; ++mode) {
+            init_data(0);
+            longest_names();
+            g_binding_count = MAX_CH_NUM;
+            for (i = 0; i < MAX_CH_NUM; ++i)
+                for (m = 0; m < 6; ++m)
+                    g_binding_list[i].mac[m] = mode == 0 ? 0xDDu : mode == 1 ? 0x00u :
+                                               (uint8_t)(m % 3u == 0u ? 0xABu : m % 3u == 1u ? 0xCDu : 0xEFu);
+            for (cycle = 0; cycle < 2; ++cycle) {
+                g_name_chk_sec = cycle * 12u;
+                for (s = 0; s < 2; ++s) {
+                    snprintf(name, sizeof(name), "subpage_unbind_mac_%u_cycle_%u_button_%u", mode, cycle, s);
+                    render(name, 3, 2, 1, s, 1);
+                }
+            }
+        }
+    }
     init_data(0);
     render("binding_left_stale_1", 2, 2, 1, 0, 1);
     render("binding_left_stale_2", 2, 2, 2, 0, 1);

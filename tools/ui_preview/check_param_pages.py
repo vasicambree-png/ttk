@@ -33,6 +33,18 @@ def check(output):
             failures.append(message)
 
     case_names = {case["case"] for case in cases}
+    for count in (0, 1, 7, 10, 11, 20, 32):
+        for timer in (0, 4, 8, 12, 65535):
+            for button in (0, 1):
+                fixture_name = f"subpage_unbind_count_{count}_time_{timer}_button_{button}"
+                require(fixture_name in case_names,
+                        fixture_name + ": unbind count/timer/action fixture present")
+    for mode in range(3):
+        for cycle in range(2):
+            for button in range(2):
+                fixture_name = f"subpage_unbind_mac_{mode}_cycle_{cycle}_button_{button}"
+                require(fixture_name in case_names,
+                        fixture_name + ": longest-name and extreme full-MAC fixture present")
     for count in (0, 1, 6, 7, 10, 11, 20, 32):
         for cache in (0, 1):
             for button in (0, 1):
@@ -273,42 +285,69 @@ def check(output):
         require(len(counts) == 1 and counts[0][:3] == (108, 16, 14),
                 name + ": device count uses title size and device unit")
         header_ink = [row for row in inks[name] if row[1] < 22 and row[3] >= 0]
-        require(len(header_ink) == 4 and all(2 <= row[4] <= row[6] <= 20 for row in header_ink),
+        require(len(header_ink) == 2 and all(2 <= row[4] <= row[6] <= 20 for row in header_ink),
                 name + ": binding header ink fits top band")
         for i, a in enumerate(header_ink):
             for b in header_ink[i + 1:]:
                 require(a[5] < b[3] or b[5] < a[3],
-                        name + ": count, title and actions do not overlap")
-        data = [row for row in rows if row[1] >= 22]
-        labels = [row for row in data if re.fullmatch(r"[1-9]\d*:", row[3])]
-        require(len(data) == len(labels) * 3 and len(labels) <= 10,
-                name + ": device rows retain number, name and full MAC")
-        numbers = [int(row[3][:-1]) for row in labels]
-        require(not numbers or numbers == list(range(numbers[0], numbers[0] + len(numbers))),
-                name + ": device sequence has no leading zero or skipped entries")
-        for i, row in enumerate(labels):
-            left = 13 if i < 5 else 202
-            baseline = 33 + 28 * (i % 5)
-            require(row[:3] == (left, baseline, 11) and
-                    sum(r[1] == baseline + 13 and left + 24 <= r[0] < left + 168 and
-                        re.fullmatch(r"[0-9A-F]{12}", r[3]) is not None for r in data) == 1,
-                    name + ": name/MAC row belongs to device " + row[3])
-        data_ink = [row for row in inks[name] if row[1] >= 22 and row[3] >= 0]
+                        name + ": count and title do not overlap")
+        fixture = re.fullmatch(r"subpage_unbind_count_(\d+)_time_(\d+)_button_(\d+)", name)
+        boundary = re.fullmatch(r"binding_count_(\d+)_cycle_(\d+)", name)
+        longest = re.fullmatch(r"subpage_binding_full_cycle_(\d+)_button_(\d+)", name)
+        extreme_mac = re.fullmatch(r"subpage_unbind_mac_(\d+)_cycle_(\d+)_button_(\d+)", name)
+        raw_count = int(fixture[1]) if fixture else int(boundary[1]) if boundary else \
+                    20 if extreme_mac else 32 if longest else 0 if "empty" in name else 3
+        count = min(raw_count, 20)
+        column_rows = max(1, (count + 1) // 2)
+        require(counts and counts[0][3] == f"总设备数:{raw_count}台",
+                name + ": header preserves true bound count including defensive overflow fixture")
+        require(not any(re.fullmatch(r"\d+/\d+", row[3]) for row in rows),
+                name + ": no pagination indicator")
+        if fixture or boundary or longest or extreme_mac:
+            reference = f"subpage_unbind_count_{raw_count}_time_0_button_{fixture[3]}" if fixture else \
+                        f"binding_count_{raw_count}_cycle_0" if boundary else \
+                        f"subpage_unbind_mac_{extreme_mac[1]}_cycle_0_button_{extreme_mac[3]}" if extreme_mac else \
+                        f"subpage_binding_full_cycle_0_button_{longest[2]}"
+            require((output / f"after/{name}.pgm").read_bytes() ==
+                    (output / f"after/{reference}.pgm").read_bytes(),
+                    name + ": unbind table and action selection remain independent of timer")
+        data = [row for row in rows if 22 <= row[1] < 140]
+        require(data == [(14, 33, 11, "--")] if not count else len(data) == count * 3,
+                name + ": all normal bindings retain number, name and complete MAC")
+        for i in range(count):
+            left = 14 + 189 * (i // column_rows)
+            baseline = 33 + 11 * (i % column_rows)
+            device = data[i * 3:i * 3 + 3]
+            expected_mac = "".join(f"{i + offset:02X}" for offset in range(6))
+            if extreme_mac:
+                expected_mac = ("DD" * 6, "00" * 6, "ABCDEFABCDEF")[int(extreme_mac[1])]
+            mac_x = left + 172 - width(expected_mac)
+            name_width = mac_x - left - 30
+            expected_name = "W" * 31 if longest or extreme_mac else f"SW_MG_1_{i + 1}" if boundary else f"SW_{i + 1:02d}_WY_01-04"
+            while width(expected_name) > name_width:
+                expected_name = expected_name[:-1]
+            require(device == [(left, baseline, 11, f"{i + 1}:"),
+                               (left + 24, baseline, 11, expected_name),
+                               (mac_x, baseline, 11, expected_mac)],
+                    name + ": sequence, clipped name and complete MAC match device " + str(i + 1))
+        data_ink = [row for row in inks[name] if 22 <= row[1] < 140 and row[3] >= 0]
+        require(len(data_ink) == len(data), name + ": visible ink for every unbind data field")
         for row in data_ink:
-            left, right = (7, 187) if row[0] < 190 else (196, 376)
-            top = 23 + 28 * ((row[1] - 33) // 28)
-            require(left <= row[3] <= row[5] <= right and top <= row[4] <= row[6] <= top + 26,
-                    name + ": device ink inside its cell " + row[7])
-        if name.startswith("subpage_binding_full_cycle_"):
-            cycle = int(name.split("_cycle_")[1].split("_")[0])
-            first = cycle * 10 + 1
-            require(numbers == list(range(first, min(first + 10, 33))),
-                    name + ": full binding table cycles through all 32 devices")
-        if name.startswith("binding_count_"):
-            count, cycle = map(int, re.fullmatch(r"binding_count_(\d+)_cycle_(\d+)", name).groups())
-            first = 1 if count == 10 or cycle == 0 else 11
-            require(numbers == list(range(first, min(first + 10, count + 1))),
-                    name + ": exact-page and partial-page boundaries")
+            left = 14 if row[0] < 190 else 203
+            require(left <= row[3] <= row[5] < left + 175 and
+                    22 <= row[4] <= row[6] < 140,
+                    name + ": device ink stays in its column above buttons " + row[7])
+        for i, a in enumerate(data_ink):
+            for b in data_ink[i + 1:]:
+                require(a[5] < b[3] or b[5] < a[3] or a[6] < b[4] or b[6] < a[4],
+                        name + ": number, name and MAC ink remain separate")
+        action_ink = [row for row in inks[name] if row[7] in ("解绑", "返回") and row[3] >= 0]
+        require(len(action_ink) == 2 and all(140 <= row[4] <= row[6] < 162 for row in action_ink) and
+                all((6 <= row[3] <= row[5] < 189) if row[7] == "解绑" else
+                    (195 <= row[3] <= row[5] < 378) for row in action_ink),
+                name + ": both actions fit their independent bottom buttons")
+        require(all(row[1] < 140 or row[3] in ("解绑", "返回") for row in rows),
+                name + ": no device text enters the bottom action region")
     result = {"checks": len(checks), "failures": failures}
     (output / "param_page_contract.json").write_text(
         json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

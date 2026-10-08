@@ -935,14 +935,14 @@ restore_style:
  *
  *   ★ CH584M 只画不执行：真正的解绑由 STM32 发 0x04、保存由 0x05 执行。
  *   ★ 设备行显示 **名称 + 12 位十六进制 MAC**（清单要求"MAC 端可见"）。
- *     名称与 MAC 分两行，全屏两列共10个设备；超出部分使用已有秒时基轮显。
+ *     名称与 MAC 同行，全屏两列最多20个设备，不轮显。
  * ================================================================== */
 
-/* 一键解绑全屏子页：两列各5个设备，保留名称、MAC及主控按钮编号。 */
+/* 一键解绑全屏子页：最多20台同屏，保留名称、完整MAC及主控按钮编号。 */
 static void binding_device_list_page(uint8_t rank3)
 {
     char line[48];
-    uint8_t i, n, first, pages;
+    uint8_t i, n, rows_per_column;
     u8g2_SetDrawColor(&u8g2, 1u);
     u8g2_DrawBox(&u8g2, 1u, 1u, 382u, 166u);
     u8g2_SetDrawColor(&u8g2, 0u);
@@ -951,34 +951,28 @@ static void binding_device_list_page(uint8_t rank3)
     ui_menu_text(29u, 16u, "设备绑定", 14u);
     sprintf(line, "总设备数:%d台", g_binding_count);
     ui_text_draw(108u, 16u, line, 14u);
-    ui_menu_control(208u, 3u, 75u, 18u, "解绑", (uint8_t)(rank3 == 0u), 1u);
-    ui_menu_control(298u, 3u, 75u, 18u, "返回", (uint8_t)(rank3 != 0u), 1u);
-    ui_main_cut_frame(6u, 22u, 183u, 142u, 4u);
-    ui_main_cut_frame(195u, 22u, 183u, 142u, 4u);
-    for (i = 1u; i < 5u; i++)
-    {
-        uint16_t y = (uint16_t)(23u + 28u * i);
-        u8g2_DrawHLine(&u8g2, 6u, y, 183u);
-        u8g2_DrawHLine(&u8g2, 195u, y, 183u);
-    }
     n = g_binding_count;
-    if (n > MAX_BINDING_NUM) n = MAX_BINDING_NUM;
-    pages = (uint8_t)((n + 9u) / 10u);
-    first = pages ? (uint8_t)(((g_name_chk_sec / 4u) % pages) * 10u) : 0u;
-    for (i = first; i < n && i < first + 10u; i++)
+    if (n > MAX_CH_NUM) n = MAX_CH_NUM;
+    rows_per_column = (uint8_t)((n + 1u) / 2u);
+    if (rows_per_column == 0u) rows_per_column = 1u;
+    if (n == 0u) ui_text_draw(14u, 33u, "--", 11u);
+    for (i = 0u; i < n; i++)
     {
-        uint8_t slot = (uint8_t)(i - first);
-        uint16_t x = (uint16_t)(slot < 5u ? 13u : 202u);
-        uint16_t y = (uint16_t)(33u + 28u * (slot % 5u));
+        uint16_t x = (uint16_t)(14u + 189u * (i / rows_per_column));
+        uint16_t y = (uint16_t)(33u + 11u * (i % rows_per_column));
+        uint16_t mac_x, name_width;
         sprintf(line, "%u:", (unsigned int)(i + 1u));
         ui_text_draw(x, y, line, 11u);
-        ui_draw_name_aligned((uint16_t)(x + 24u), y, g_binding_list[i].name, 144u, 11u, 1u);
         sprintf(line, "%02X%02X%02X%02X%02X%02X",
                 g_binding_list[i].mac[0], g_binding_list[i].mac[1], g_binding_list[i].mac[2],
                 g_binding_list[i].mac[3], g_binding_list[i].mac[4], g_binding_list[i].mac[5]);
-        ui_text_draw((uint16_t)(x + 24u + (144u - ui_text_width(line, 11u)) / 2u),
-                      (uint16_t)(y + 13u), line, 11u);
+        mac_x = (uint16_t)(x + 172u - ui_text_width(line, 11u));
+        name_width = (uint16_t)(mac_x - x - 30u);
+        ui_draw_name_size((uint16_t)(x + 24u), y, g_binding_list[i].name, name_width, 11u);
+        ui_text_draw(mac_x, y, line, 11u);
     }
+    ui_menu_control(6u, 140u, 183u, 22u, "解绑", (uint8_t)(rank3 == 0u), 1u);
+    ui_menu_control(195u, 140u, 183u, 22u, "返回", (uint8_t)(rank3 != 0u), 1u);
 }
 
 /* 绑定设备子页（re_flag==2）：同屏显示全部绑定名称，不分页、不轮显。
