@@ -989,6 +989,9 @@ static void binding_scan_page(uint8_t rank3)
     uint8_t fullscreen = (uint8_t)(Data_list1.menu_rank == 3u);
     uint16_t name_x = fullscreen ? 14u : 122u;
     uint16_t name_y = fullscreen ? 60u : 71u;
+    uint16_t column_step = fullscreen ? 189u : 126u;
+    uint16_t name_width = fullscreen ? 153u : 102u;
+    char number[8];
     const char *nm;
     if (fullscreen)
     {
@@ -1004,11 +1007,15 @@ static void binding_scan_page(uint8_t rank3)
     if (n == 0u) ui_draw(name_x, name_y, "--");
     for (i = 0u; i < n && i < 6u; i++)
     {
+        uint16_t x = (uint16_t)(name_x + column_step * (i / 3u));
+        uint16_t y = (uint16_t)(name_y + 22u * (i % 3u));
+        sprintf(number, "%u:", (unsigned int)(i + 1u));
+        ui_text_draw(x, y, number, 11u);
         nm = scan_name_cache_name(i);
         if (nm != NULL)
-            ui_draw_name_size(name_x, (uint16_t)(name_y + 13u * i), (const uint8_t *)nm,
-                              fullscreen ? 354u : 246u, 11u);
-        else ui_text_draw(name_x, (uint16_t)(name_y + 13u * i), "--", 11u);
+            ui_draw_name_size((uint16_t)(x + 18u), y, (const uint8_t *)nm,
+                              name_width, 11u);
+        else ui_text_draw((uint16_t)(x + 18u), y, "--", 11u);
     }
     ui_menu_control(fullscreen ? 6u : 117u, 140u, fullscreen ? 183u : 128u, 22u, "保存目前设备",
                      (uint8_t)(Data_list1.menu_rank == 3u && rank3 == 0u), 1u);

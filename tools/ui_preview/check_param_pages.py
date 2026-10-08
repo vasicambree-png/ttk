@@ -201,20 +201,34 @@ def check(output):
                     sum(row[3] == "返回" for row in rows) == 1 and
                     not any(row[3] == "地址分区" for row in rows),
                     name + ": fullscreen scan page retains title, cache and actions")
-            names = [row for row in rows if 60 <= row[1] <= 125]
-            require(1 <= len(names) <= 6 and all(row[0] == 14 and row[1] in range(60, 126, 13)
-                    and row[2] == 11 for row in names) if "empty" not in name else
-                    names == [(14, 60, 14, "--")],
-                    name + ": scan names or empty placeholder in full-width content")
+            data = [row for row in rows if 60 <= row[1] <= 125]
+            labels = [row for row in data if re.fullmatch(r"[1-6]:", row[3])]
+            names = [row for row in data if row not in labels]
+            count_match = re.match(r"subpage_scan_count_(\d+)_", name)
+            expected_count = int(count_match[1]) if count_match else 6
+            require(data == [(14, 60, 14, "--")] if "empty" in name else
+                    len(labels) == len(names) == expected_count and
+                    [row[3] for row in labels] == [f"{i}:" for i in range(1, expected_count + 1)],
+                    name + ": ordered devices have number prefixes or empty placeholder")
+            for i, (label, entry) in enumerate(zip(labels, names)):
+                x, y = 14 + 189 * (i // 3), 60 + 22 * (i % 3)
+                require(label[:3] == (x, y, 11) and entry[:3] == (x + 18, y, 11) and
+                        width(label[3]) < 18 and width(entry[3]) <= 153,
+                        name + ": three numbered names per column with separate prefix space")
             if name.startswith("subpage_scan_longest_"):
-                require([row[3] for row in names] == ["W" * 29] * 6,
-                        name + ": all six longest scan names are untruncated")
+                require(len(names) == 6 and all(row[3].startswith("W") and
+                        set(row[3]) <= {"W", "."} and width(row[3]) <= 153 for row in names),
+                        name + ": longest names fit their column using existing clipping")
             elif "empty" not in name:
-                require([row[3] for row in names] == [f"SW_{i:02d}_WY_01-04" for i in range(1, 7)],
+                require([row[3] for row in names] == [f"SW_{i:02d}_WY_01-04" for i in range(1, expected_count + 1)],
                         name + ": scan cache order is preserved")
             scan_ink = [row for row in inks[name] if 60 <= row[1] <= 125 and row[3] >= 0]
             require(all(14 <= row[3] <= row[5] < 368 and 48 <= row[4] <= row[6] < 140
                     for row in scan_ink), name + ": names fit above action buttons")
+            for i, a in enumerate(scan_ink):
+                for b in scan_ink[i + 1:]:
+                    require(a[5] < b[3] or b[5] < a[3] or a[6] < b[4] or b[6] < a[4],
+                            name + ": device and prefix ink do not overlap")
             continue
         require((29, 16, 14, "设备绑定") in rows and
                 sum(row[3] == "解绑" for row in rows) == 1 and

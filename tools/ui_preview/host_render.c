@@ -564,6 +564,15 @@ static void render_menu_cases(void) {
     init_data(0);
     render("binding_left_stale_1", 2, 2, 1, 0, 1);
     render("binding_left_stale_2", 2, 2, 2, 0, 1);
+    for (n = 1; n <= SCAN_NAME_CACHE_NUM; ++n) {
+        init_data(0);
+        for (i = n; i < SCAN_NAME_CACHE_NUM; ++i)
+            memset(g_scan_name_cache[i].name, 0, MAX_NAME_LEN);
+        for (s = 0; s < 2; ++s) {
+            snprintf(name, sizeof(name), "subpage_scan_count_%u_button_%u", n, s);
+            render(name, 3, 2, 2, s, 1);
+        }
+    }
     init_data(1);
     longest_names();
     render("menu_binding_full", 3, 2, 0, 0, 1);

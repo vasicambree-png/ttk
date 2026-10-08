@@ -18,6 +18,8 @@ typedef struct { int unused; } tmos_event_hdr_t;
 typedef int app_drv_fifo_result_t;
 #define APP_DRV_FIFO_RESULT_SUCCESS 0
 static uint32_t mock_clock;
+static uint8_t mock_save_status, last_message, last_response_cmd, last_response_status;
+static uint16_t last_response_len;
 static unsigned draws, off_calls, on_calls, drains, round_ticks, report_calls;
 static unsigned cmd03_requests, cmd03_ticks, cmd03_answers, response_calls;
 static unsigned init_calls, saves, clears, ble_ticks, name_ticks;
@@ -43,8 +45,8 @@ static void tmos_start_task(uint8_t id, uint16_t evt, uint32_t ticks)
 static void observer_adv_drain(unsigned n) { (void)n; drains++; }
 static void u8g2Init(u8g2_t *s) { (void)s; init_calls++; }
 static uint8_t binding_store_clear(void) { clears++; return BIND_STORE_STATUS_OK; }
-static uint8_t binding_store_save(void) { saves++; return BIND_STORE_STATUS_OK; }
-static void ui_show_msg(uint8_t msg) { (void)msg; }
+static uint8_t binding_store_save(void) { saves++; return mock_save_status; }
+static void ui_show_msg(uint8_t msg) { last_message = msg; }
 static uint8_t ui_msg_tick_sec(void) { return 0; }
 static void observer_round_tick(void) { round_ticks++; }
 static uint8_t observer_round_is_complete(void) { return mock_round_complete; }
@@ -62,7 +64,8 @@ static void observer_ble_diag_tick(void) { }
 static uint8_t observer_cmd03_request(void) { cmd03_requests++; return 1; }
 static uint8_t observer_clear_all_bindings(void) { return 1; }
 static void send_response_frame(uint8_t cmd, uint8_t *data, uint16_t len)
-{ (void)cmd; (void)data; (void)len; response_calls++; }
+{ last_response_cmd = cmd; last_response_len = len;
+  last_response_status = len ? data[0] : 0; response_calls++; }
 static uint16_t app_drv_fifo_length(app_drv_fifo_t *fifo)
 { (void)fifo; return queue_head == queue_tail ? 0 : queued_len[queue_head]; }
 static app_drv_fifo_result_t app_drv_fifo_read_pack(app_drv_fifo_t *fifo,

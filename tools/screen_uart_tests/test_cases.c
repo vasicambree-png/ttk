@@ -40,6 +40,8 @@ static void reset(void)
     mock_clock = 0; draws = off_calls = on_calls = drains = round_ticks = report_calls = 0;
     cmd03_requests = cmd03_ticks = cmd03_answers = response_calls = 0;
     init_calls = saves = clears = ble_ticks = name_ticks = 0;
+    mock_save_status = last_message = last_response_cmd = last_response_status = 0;
+    last_response_len = 0;
     mock_round_complete = mock_cmd03_ready = 0;
     g_scan_mode = g_binding_count = g_store_dirty = 0;
     Rx_sleep_flag = 1; dis_flag_cnt = 0; g_frame_last_sec = FRAME_AGE_NEVER;
@@ -288,6 +290,59 @@ int main(void)
     mock_clock += 1; pump(5);
     CHECK(Rx_sleep_flag == 1 && off_calls == 2 && on_calls == 2);
     puts("PASS: valid rank3 stays on through timeout/stale frames/messages/reinit; exit restarts timeout");
+    /* Drive the real UART parser, retaining each Flash status and response. */
+    for (i = 0; i < 3; i++) {
+        uint16_t binding[16] = {0};
+        uint8_t save_frame[] = {0xaa, 0xee, 0, 1, 5, 5, 0x0a};
+        const uint8_t messages[] = {
+            UI_MSG_BIND_SAVE_OK, UI_MSG_BIND_SAVE_EMPTY, UI_MSG_BIND_SAVE_FAIL
+        };
+        reset(); binding[14] = 1; binding[15] = 2;
+        Data_list1.Menu_rank6.time_light = 10;
+        len = make_page(frame, 3, 2, 7, binding, 16);
+        enqueue(frame, len); app_uart_process();
+        usart_ProcessEvent(0, START_TIMER_EVT);
+        CHECK(g_scan_mode == SCAN_MODE_BIND && screen_power.rank == 3);
+        mock_clock = 20000; mock_save_status = (uint8_t)i;
+        enqueue(save_frame, sizeof(save_frame)); app_uart_process();
+        CHECK(saves == 1 && response_calls == 1 && last_response_cmd == 5);
+        CHECK(last_response_len == 1 && last_response_status == i);
+        CHECK(last_message == messages[i]);
+        CHECK(Data_list1.menu_rank == 2 && Data_list1.rank2_addr == 2 &&
+              Data_list1.rank3_addr == 2 && Data_list1.UI_main.re_flag == 0);
+        CHECK(Data_list1.UI_main.chu_num2 == 1 && g_scan_mode == SCAN_MODE_DATA);
+        CHECK(screen_power.rank == 2 && screen_power.menu == 2 &&
+              screen_power.focus == 2 && screen_power.subpage == 0 &&
+              screen_power.last_activity == mock_clock);
+        CHECK(dis_flag_cnt == 1);
+        mock_clock += 15999;
+        CHECK(screen_power_is_off(&screen_power, mock_clock) == 0);
+        mock_clock++;
+        CHECK(screen_power_is_off(&screen_power, mock_clock) == 1);
+    }
+    /* Invalid requests have no side effects; saves elsewhere preserve navigation. */
+    for (i = 0; i < 5; i++) {
+        uint8_t save_frame[] = {0xaa, 0xee, 0, 1, 5, 5, 0x0a, 0};
+        uint16_t save_len = 7;
+        screen_power_t policy;
+        reset(); Data_list1.menu_rank = 3; Data_list1.rank2_addr = 2;
+        Data_list1.rank3_addr = 7; Data_list1.UI_main.re_flag = 2;
+        if (i == 0) save_frame[5] = 4;
+        else if (i == 1) {
+            save_frame[3] = 2; save_frame[5] = 0;
+            save_frame[6] = 5; save_frame[7] = 0x0a; save_len = 8;
+        }
+        else if (i == 2) Data_list1.menu_rank = 2;
+        else if (i == 3) Data_list1.rank2_addr = 1;
+        else Data_list1.UI_main.re_flag = 1;
+        saved = Data_list1; policy = screen_power; g_scan_mode = SCAN_MODE_BIND;
+        enqueue(save_frame, save_len); app_uart_process();
+        CHECK(memcmp(&saved, &Data_list1, sizeof(saved)) == 0);
+        CHECK(memcmp(&policy, &screen_power, sizeof(policy)) == 0);
+        CHECK(g_scan_mode == SCAN_MODE_BIND);
+        CHECK(saves == (i >= 2 ? 1u : 0u) && response_calls == (i >= 2 ? 1u : 0u));
+    }
+    puts("PASS: binding save returns to parent with immediate data scan/power policy; statuses, invalid requests and unrelated pages preserved");
     printf("%u checks, %u failures\n", checks, failures);
     return failures ? 1 : 0;
 }

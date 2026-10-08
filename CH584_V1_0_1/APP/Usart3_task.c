@@ -1373,6 +1373,22 @@ uint8_t parse_received_frame(uint8_t *rx_buffer, uint16_t data_len, data_LIST *p
             send_response_frame(0x05, &st, 1);   /* ★ 先回包：STM32 在等这个 8 字节应答 */
             cmd05_rsp_cnt++;
 
+            /* Saving from the binding scan page returns to its parent menu.
+             * Update scan/power policy now, without waiting for the next tick. */
+            if (pData->menu_rank == 3u && pData->rank2_addr == 2u &&
+                pData->UI_main.re_flag == 2u)
+            {
+                pData->menu_rank = 2u;
+                pData->rank3_addr = 2u;
+                pData->UI_main.re_flag = 0u;
+                g_scan_mode = SCAN_MODE_DATA;
+                screen_power_note_page(&screen_power, TMOS_GetSystemClock(),
+                                       pData->menu_rank, pData->rank2_addr,
+                                       pData->rank3_addr, pData->UI_main.chu_num2,
+                                       pData->UI_main.re_flag,
+                                       pData->Menu_rank6.time_light);
+            }
+
             /* ★★★ V1_0_2 第六轮新增：把保存结果画到屏上
              * ------------------------------------------------------------------
              * 这就是"按键保存多次没有成功提醒"要补的东西：
@@ -1382,7 +1398,7 @@ uint8_t parse_received_frame(uint8_t *rx_buffer, uint16_t data_len, data_LIST *p
              *   OK    -> "绑定保存成功"
              *   EMPTY -> "无绑定可保存"（当前没有绑定，无需写 Flash）
              *   FAIL  -> "绑定保存失败"（擦/写/回读校验任一步失败）
-             * 提示页由 UI_Control() 优先绘制、2 秒后自动返回原页面
+             * 提示页由 UI_Control() 优先绘制、2 秒后显示当前页面
              * （倒数是 1 秒事件里的 ui_msg_tick_sec()）。
              * 重画请求：本函数由 app_uart_process() 调用，解析成功后那里本来
              * 就会置 dis_flag_cnt = 1，所以这里不需要额外置位。 */
