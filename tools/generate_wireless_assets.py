@@ -5,19 +5,19 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "CH584_V1_0_1/APP/include/ui_wireless_assets.h"
 WIDTH, HEIGHT = 17, 13
 STRONG = (
-    ".###############.",
+    "......#####......",
+    "...###########...",
+    ".####.......####.",
     "###...........###",
-    "##.............##",
+    "......#####......",
     "....#########....",
     "...###.....###...",
-    "...##.......##...",
-    "......#####......",
-    ".....###.###.....",
+    ".......###.......",
+    ".....#######.....",
     ".....##...##.....",
-    ".................",
+    "........#........",
     ".......###.......",
-    ".......###.......",
-    ".......###.......",
+    "........#........",
 )
 UNKNOWN = (
     ".................",
@@ -52,7 +52,9 @@ def main():
     for level in range(4):
         rows = list(STRONG)
         if level in (1, 2):
-            rows[:3 if level == 2 else 6] = ["." * WIDTH] * (3 if level == 2 else 6)
+            # The rounded outer/middle arcs occupy rows 0..3 and 4..6.
+            hidden_rows = 4 if level == 2 else 7
+            rows[:hidden_rows] = ["." * WIDTH] * hidden_rows
         if level == 0:
             # A strike through the full icon means no signal, not strong signal.
             for y in range(HEIGHT):

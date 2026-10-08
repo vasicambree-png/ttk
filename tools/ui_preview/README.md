@@ -15,6 +15,9 @@ python tools/ui_preview/run_preview.py
 无线图标是Wi-Fi外形，读取主控`UI_main.Lora_rssi`；本次显示约定0无、1弱、2中、3强，
 其他值显示问号。仓库无独立Wi-Fi联网字段，主控是否按此约定下发尚未验证。
 资源由`tools/generate_wireless_assets.py`生成；“台”由已有菜单字模生成器补齐四种字号。
+后续按参考图将无线图标改为三层圆弧与独立圆点，仍为17×13；弱/中/强档分别保留
+一/二/三道弧线，无信号保留斜线、未知值保留问号。该次预览在
+`output/home_wifi_arc_20261008/`，`after/home_wifi_3_3x.png`为强信号图标示例。
 本轮独立预览在`output/home_header_large_20261008/`，复验命令：
 
 ```powershell
