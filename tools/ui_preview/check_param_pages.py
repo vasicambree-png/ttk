@@ -33,6 +33,13 @@ def check(output):
             failures.append(message)
 
     case_names = {case["case"] for case in cases}
+    for count in (0, 1, 6, 7, 10, 11, 20, 32):
+        for cache in (0, 1):
+            for button in (0, 1):
+                for cycle in range(max(1, (count + 9) // 10) + 1):
+                    fixture_name = f"subpage_scan_bound_{count}_cache_{cache}_cycle_{cycle}_button_{button}"
+                    require(fixture_name in case_names,
+                            fixture_name + ": all-binding count/cache/timer/action fixture present")
     for label in ("signal", "voltage", "names"):
         require(f"menu_{label}_endpoints" in case_names,
                 label + ": independent column-endpoint fixture present")
@@ -195,36 +202,63 @@ def check(output):
         if int(case["rank"]) != 3 or int(case["menu"]) != 2 or int(case["subpage"]) not in (1, 2):
             continue
         if int(case["subpage"]) == 2:
+            fixture = re.fullmatch(r"subpage_scan_bound_(\d+)_cache_(\d+)_cycle_(\d+)_button_(\d+)", name)
+            longest = re.fullmatch(r"subpage_scan_longest_cycle_(\d+)_button_(\d+)", name)
+            expected_count = int(fixture[1]) if fixture else 32 if longest else 0 if "empty" in name else 3
+            expected_numbers = list(range(1, expected_count + 1))
+            column_rows = max(1, (expected_count + 1) // 2) if expected_count <= 20 else 8
+            column_step = 189 if expected_count <= 20 else 92
+            row_step = 11 if expected_count <= 20 else 13
+            name_width = 147 if expected_count <= 20 else 64
             require((29, 16, 14, "设备绑定") in rows and
-                    (14, 42, 14, "扫描到的蓝牙名称") in rows and
+                    (108, 16, 14, f"已绑定设备:{expected_count}台") in rows and
                     sum(row[3] == "保存目前设备" for row in rows) == 1 and
                     sum(row[3] == "返回" for row in rows) == 1 and
                     not any(row[3] == "地址分区" for row in rows),
-                    name + ": fullscreen scan page retains title, cache and actions")
-            data = [row for row in rows if 60 <= row[1] <= 125]
-            labels = [row for row in data if re.fullmatch(r"[1-6]:", row[3])]
+                    name + ": fullscreen scan page retains title, binding count and actions")
+            page_rows = [row for row in rows if re.fullmatch(r"\d+/\d+", row[3])]
+            require(not page_rows, name + ": every binding is shown without pagination")
+            if fixture:
+                reference = f"subpage_scan_bound_{expected_count}_cache_0_cycle_0_button_{fixture[4]}"
+                require((output / f"after/{name}.pgm").read_bytes() ==
+                        (output / f"after/{reference}.pgm").read_bytes(),
+                        name + ": time and independent scan cache do not change binding page")
+            if longest:
+                reference = f"subpage_scan_longest_cycle_0_button_{longest[2]}"
+                require((output / f"after/{name}.pgm").read_bytes() ==
+                        (output / f"after/{reference}.pgm").read_bytes(),
+                        name + ": long-name binding page is independent of timer")
+            data = [row for row in rows if 22 <= row[1] < 140]
+            labels = [row for row in data if re.fullmatch(r"[1-9]\d*:", row[3])]
             names = [row for row in data if row not in labels]
-            count_match = re.match(r"subpage_scan_count_(\d+)_", name)
-            expected_count = int(count_match[1]) if count_match else 6
-            require(data == [(14, 60, 14, "--")] if "empty" in name else
-                    len(labels) == len(names) == expected_count and
-                    [row[3] for row in labels] == [f"{i}:" for i in range(1, expected_count + 1)],
+            require(data == [(14, 33, 11, "--")] if expected_count == 0 else
+                    len(labels) == len(names) == len(expected_numbers) and
+                    [row[3] for row in labels] == [f"{i}:" for i in expected_numbers],
                     name + ": ordered devices have number prefixes or empty placeholder")
             for i, (label, entry) in enumerate(zip(labels, names)):
-                x, y = 14 + 189 * (i // 3), 60 + 22 * (i % 3)
-                require(label[:3] == (x, y, 11) and entry[:3] == (x + 18, y, 11) and
-                        width(label[3]) < 18 and width(entry[3]) <= 153,
-                        name + ": three numbered names per column with separate prefix space")
-            if name.startswith("subpage_scan_longest_"):
-                require(len(names) == 6 and all(row[3].startswith("W") and
-                        set(row[3]) <= {"W", "."} and width(row[3]) <= 153 for row in names),
+                x, y = 14 + column_step * (i // column_rows), 33 + row_step * (i % column_rows)
+                require(label[:3] == (x, y, 11) and entry[:3] == (x + 24, y, 11) and
+                        width(label[3]) < 24 and width(entry[3]) <= name_width,
+                        name + ": all numbered names fit their fixed column cells")
+            if longest:
+                require(len(names) == len(expected_numbers) and all(row[3].startswith("W") and
+                        set(row[3]) <= {"W", "."} and width(row[3]) <= name_width for row in names),
                         name + ": longest names fit their column using existing clipping")
-            elif "empty" not in name:
-                require([row[3] for row in names] == [f"SW_{i:02d}_WY_01-04" for i in range(1, expected_count + 1)],
-                        name + ": scan cache order is preserved")
-            scan_ink = [row for row in inks[name] if 60 <= row[1] <= 125 and row[3] >= 0]
-            require(all(14 <= row[3] <= row[5] < 368 and 48 <= row[4] <= row[6] < 140
+            elif expected_count:
+                def clipped(text):
+                    while width(text) > name_width:
+                        text = text[:-1]
+                    return text
+                require([row[3] for row in names] == [clipped(f"SW_{i:02d}_WY_01-04") for i in expected_numbers],
+                        name + ": binding-list order is preserved independently of scan cache")
+            scan_ink = [row for row in inks[name] if 22 <= row[1] < 140 and row[3] >= 0]
+            require(all(14 <= row[3] <= row[5] < 378 and 22 <= row[4] <= row[6] < 140
                     for row in scan_ink), name + ": names fit above action buttons")
+            for row in scan_ink:
+                left = 14 + column_step * ((row[0] - 14) // column_step)
+                right = left + 24 + name_width
+                require(left <= row[3] <= row[5] <= right,
+                        name + ": number and name ink stay inside their column")
             for i, a in enumerate(scan_ink):
                 for b in scan_ink[i + 1:]:
                     require(a[5] < b[3] or b[5] < a[3] or a[6] < b[4] or b[6] < a[4],

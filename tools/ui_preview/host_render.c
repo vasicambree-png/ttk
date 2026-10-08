@@ -573,6 +573,31 @@ static void render_menu_cases(void) {
             render(name, 3, 2, 2, s, 1);
         }
     }
+    /* Bind-page drawing fixtures deliberately keep the scan cache independent.
+     * 32 records exercise defensive RAM-table capacity, not valid channel allocation. */
+    {
+        static const unsigned counts[] = {0, 1, 6, 7, 10, 11, 20, 32};
+        unsigned k, cycle, timer_samples;
+        for (k = 0; k < sizeof(counts) / sizeof(counts[0]); ++k) {
+            n = counts[k];
+            timer_samples = n ? (n + 9u) / 10u : 1u;
+            for (mode = 0; mode < 2; ++mode) {
+                init_data(0);
+                g_binding_count = (uint8_t)n;
+                memset(g_scan_name_cache, 0, sizeof(g_scan_name_cache));
+                if (mode)
+                    for (i = 0; i < SCAN_NAME_CACHE_NUM; ++i)
+                        snprintf((char *)g_scan_name_cache[i].name, MAX_NAME_LEN, "CACHE_ONLY_%u", i + 1);
+                for (cycle = 0; cycle <= timer_samples; ++cycle) {
+                    g_name_chk_sec = cycle * 4u;
+                    for (s = 0; s < 2; ++s) {
+                        snprintf(name, sizeof(name), "subpage_scan_bound_%u_cache_%u_cycle_%u_button_%u", n, mode, cycle, s);
+                        render(name, 3, 2, 2, s, 1);
+                    }
+                }
+            }
+        }
+    }
     init_data(1);
     longest_names();
     render("menu_binding_full", 3, 2, 0, 0, 1);
@@ -583,9 +608,12 @@ static void render_menu_cases(void) {
             render(name, 3, 2, 1, s, 1);
         }
     }
-    for (s = 0; s < 2; ++s) {
-        snprintf(name, sizeof(name), "subpage_scan_longest_button_%u", s);
-        render(name, 3, 2, 2, s, 1);
+    for (i = 0; i <= (MAX_BINDING_NUM + 9) / 10; ++i) {
+        g_name_chk_sec = i * 4u;
+        for (s = 0; s < 2; ++s) {
+            snprintf(name, sizeof(name), "subpage_scan_longest_cycle_%u_button_%u", i, s);
+            render(name, 3, 2, 2, s, 1);
+        }
     }
     init_data(0);
     for (i = 0; i < sizeof(address_values) / sizeof(address_values[0]); ++i) {

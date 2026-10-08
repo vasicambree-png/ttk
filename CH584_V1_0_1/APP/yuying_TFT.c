@@ -981,45 +981,43 @@ static void binding_device_list_page(uint8_t rank3)
     }
 }
 
-/* 绑定设备子页（re_flag==2）：显示最近扫描到的蓝牙名称 + 保存目前设备/返回
+/* 绑定设备子页（re_flag==2）：同屏显示全部绑定名称，不分页、不轮显。
  *   "保存目前设备" = STM32 发 0x05（CH584M 在 case 0x05 里落盘绑定表）。 */
 static void binding_scan_page(uint8_t rank3)
 {
-    uint8_t i, n;
-    uint8_t fullscreen = (uint8_t)(Data_list1.menu_rank == 3u);
-    uint16_t name_x = fullscreen ? 14u : 122u;
-    uint16_t name_y = fullscreen ? 60u : 71u;
-    uint16_t column_step = fullscreen ? 189u : 126u;
-    uint16_t name_width = fullscreen ? 153u : 102u;
-    char number[8];
-    const char *nm;
-    if (fullscreen)
+    uint8_t i, n, rows_per_column;
+    uint16_t column_step, name_width, row_step;
+    char number[32];
+    u8g2_SetDrawColor(&u8g2, 1u);
+    u8g2_DrawBox(&u8g2, 1u, 1u, 382u, 166u);
+    u8g2_SetDrawColor(&u8g2, 0u);
+    u8g2_DrawRFrame(&u8g2, 2u, 1u, 380u, 166u, 4u);
+    u8g2_DrawXBMP(&u8g2, 10u, 6u, 13u, 13u, ui_menu_nav_icons[2]);
+    ui_menu_text(29u, 16u, "设备绑定", 14u);
+    n = g_binding_count;
+    if (n > MAX_BINDING_NUM) n = MAX_BINDING_NUM;
+    sprintf(number, "已绑定设备:%u台", (unsigned int)n);
+    ui_text_draw(108u, 16u, number, 14u);
+    /* Normal distinct devices occupy at least one of twenty channels. Keep
+     * every record visible even if a restored table contains duplicates. */
+    rows_per_column = n <= MAX_CH_NUM ? (uint8_t)((n + 1u) / 2u) : 8u;
+    if (rows_per_column == 0u) rows_per_column = 1u;
+    column_step = n <= MAX_CH_NUM ? 189u : 92u;
+    name_width = n <= MAX_CH_NUM ? 147u : 64u;
+    row_step = n <= MAX_CH_NUM ? 11u : 13u;
+    if (n == 0u) ui_text_draw(14u, 33u, "--", 11u);
+    for (i = 0u; i < n; i++)
     {
-        u8g2_SetDrawColor(&u8g2, 1u);
-        u8g2_DrawBox(&u8g2, 1u, 1u, 382u, 166u);
-        u8g2_SetDrawColor(&u8g2, 0u);
-        u8g2_DrawRFrame(&u8g2, 2u, 1u, 380u, 166u, 4u);
-        u8g2_DrawXBMP(&u8g2, 10u, 6u, 13u, 13u, ui_menu_nav_icons[2]);
-        ui_menu_text(29u, 16u, "设备绑定", 14u);
-    }
-    ui_draw(name_x, fullscreen ? 42u : 56u, "扫描到的蓝牙名称");
-    n = scan_name_cache_count();
-    if (n == 0u) ui_draw(name_x, name_y, "--");
-    for (i = 0u; i < n && i < 6u; i++)
-    {
-        uint16_t x = (uint16_t)(name_x + column_step * (i / 3u));
-        uint16_t y = (uint16_t)(name_y + 22u * (i % 3u));
+        uint16_t x = (uint16_t)(14u + column_step * (i / rows_per_column));
+        uint16_t y = (uint16_t)(33u + row_step * (i % rows_per_column));
         sprintf(number, "%u:", (unsigned int)(i + 1u));
         ui_text_draw(x, y, number, 11u);
-        nm = scan_name_cache_name(i);
-        if (nm != NULL)
-            ui_draw_name_size((uint16_t)(x + 18u), y, (const uint8_t *)nm,
-                              name_width, 11u);
-        else ui_text_draw((uint16_t)(x + 18u), y, "--", 11u);
+        ui_draw_name_size((uint16_t)(x + 24u), y, g_binding_list[i].name,
+                          name_width, 11u);
     }
-    ui_menu_control(fullscreen ? 6u : 117u, 140u, fullscreen ? 183u : 128u, 22u, "保存目前设备",
+    ui_menu_control(6u, 140u, 183u, 22u, "保存目前设备",
                      (uint8_t)(Data_list1.menu_rank == 3u && rank3 == 0u), 1u);
-    ui_menu_control(fullscreen ? 195u : 247u, 140u, fullscreen ? 183u : 128u, 22u, "返回",
+    ui_menu_control(195u, 140u, 183u, 22u, "返回",
                      (uint8_t)(Data_list1.menu_rank == 3u && rank3 != 0u), 1u);
 }
 
