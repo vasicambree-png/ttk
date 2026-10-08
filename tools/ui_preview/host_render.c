@@ -469,6 +469,16 @@ static void render_menu_cases(void) {
             render(name, 3, re <= 2 ? 2 : re <= 4 ? 3 : 6, re, s, 1);
         }
     }
+    /* A stale fullscreen flag must not steal another menu, especially menu 7. */
+    for (re = 3; re <= 5; ++re) {
+        snprintf(name, sizeof(name), "route_return_left_stale_%u", re);
+        render(name, 2, 7, re, 0, 1);
+        for (m = 0; m < 8; ++m) {
+            if ((m == 3 && (re == 3 || re == 4)) || (m == 6 && re == 5)) continue;
+            snprintf(name, sizeof(name), "route_menu_%u_stale_%u", m, re);
+            render(name, 3, m, re, 0, 1);
+        }
+    }
     for (mode = 0; mode <= 1; ++mode) {
         for (m = 0; m < 8; ++m) {
             u8g2_SetBitmapMode(&u8g2, (uint8_t)mode);
@@ -626,6 +636,10 @@ static void render_menu_cases(void) {
     CH_com_buf[19].data_re_flag = 0;
     render("menu_20_signal_partial_received", 3, 3, 3, 0, 1);
     render("menu_20_voltage_partial_received", 3, 3, 4, 0, 1);
+    strcpy((char *)CH_com_buf[9].name, "g_jpqy");
+    strcpy((char *)CH_com_buf[19].name, "g_jpqy");
+    render("menu_20_names_descenders", 3, 6, 5, 0, 1);
+    render("menu_20_names_descenders_page2", 3, 6, 5, 0, 2);
 
     /* Carry font, color and bitmap context across alternating actual pages. */
     init_data(0);

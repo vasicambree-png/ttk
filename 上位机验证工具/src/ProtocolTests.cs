@@ -52,7 +52,7 @@ namespace Ch584ScreenVerifier
                 Invalid(p);
             });
             Run("Current menu payloads include two page metadata values", delegate {
-                int[] counts = {4,8,16,23,8,5,10};
+                int[] counts = {4,8,16,23,8,5,10,2};
                 for (byte menu = 0; menu < counts.Length; menu++) {
                     for (byte rank = 2; rank <= 3; rank++) {
                         var p = Page(rank, menu, counts[menu]);
@@ -71,6 +71,43 @@ namespace Ch584ScreenVerifier
                 p.Values = new ushort[] {100,200,300,1000,2000,3000,10,20,1,0};
                 Assert(Protocol.Validate(p) == null, "current menu6");
                 Assert(Protocol.Frame(p).Length == 32, "current menu6 frame size");
+            });
+            Run("Return-home menu7: two metadata values and exact 16-byte page frames", delegate {
+                byte[] expected = new byte[] {0xAA,0xEE,0,0x0A,1,1,3,7,0,2,0,1,0,0,0x0F,0x0A};
+                for (byte rank = 2; rank <= 3; rank++) {
+                    var p = Page(rank, 7, 2); p.Values[0] = 1;
+                    byte[] vector = Copy(expected); vector[6] = rank; vector[14] = (byte)(rank + 12);
+                    byte[] frame = Protocol.Frame(p);
+                    Equal(vector, frame, "menu7 rank=" + rank);
+                    Assert(Protocol.ValidateTransmit(frame) == null, "menu7 transmit allowed");
+                    Assert(Protocol.Describe(frame).Contains("返回主页"), "menu7 frame named");
+                }
+            });
+            Run("Return-home menu7 rejects missing/extra metadata and malformed raw frames", delegate {
+                for (byte rank = 2; rank <= 3; rank++) {
+                    foreach (int count in new int[] {0,1,3}) {
+                        Invalid(Page(rank, 7, count));
+                        byte[] payload = new byte[5 + count * 2];
+                        payload[0] = 1; payload[1] = rank; payload[2] = 7; payload[4] = (byte)count;
+                        Assert(Protocol.ValidateTransmit(Wire(1, payload)) != null, "menu7 raw metadata count=" + count);
+                    }
+                    var p = Page(rank, 7, 2); p.Values = new ushort[] {0x1234, 5};
+                    byte[] frame = Protocol.Frame(p);
+                    Assert(frame[10] == 0x12 && frame[11] == 0x34 && frame[13] == 5, "metadata preserved");
+                    Assert(Protocol.ValidateTransmit(frame.Take(frame.Length - 1).ToArray()) != null, "menu7 truncation rejected");
+                    frame[frame.Length - 2] ^= 1;
+                    Assert(Protocol.ValidateTransmit(frame) != null, "menu7 checksum damage rejected");
+                }
+            });
+            Run("Return-home defaults cover both menu focus and third-level confirmation", delegate {
+                var pages = Protocol.Defaults().Where(x => x.Menu == 7).ToList();
+                Assert(pages.Count == 2 && pages.Any(x => x.Rank == 2) && pages.Any(x => x.Rank == 3), "both return-home defaults");
+                foreach (var p in pages) {
+                    Assert(p.Enabled && p.Focus == 0, "ordinary return-home default");
+                    Assert(p.Values.SequenceEqual(new ushort[] {1,0}), "only page metadata defaults");
+                    Assert(p.Labels.Length == 2 && p.Labels[0].Contains("chu_num2") && p.Labels[1].Contains("re_flag"), "two metadata labels");
+                    Assert(Protocol.Validate(p) == null, "valid return-home default");
+                }
             });
             Run("Rank6 is a one-parameter transient message", delegate {
                 var p = Page(6, 0, 1); p.Values[0] = 1;
@@ -118,7 +155,12 @@ namespace Ch584ScreenVerifier
                 Assert(Protocol.ValidateTransmit(Concat(KnownHome,KnownHome)) != null, "raw input must be a single frame");
             });
             Run("Page bounds: invalid rank/menu, too many parameters, bad delay", delegate {
-                Invalid(Page(0,0,10)); Invalid(Page(7,0,10)); Invalid(Page(2,7,10));
+                Invalid(Page(0,0,10)); Invalid(Page(7,0,10)); Invalid(Page(2,8,2)); Invalid(Page(3,8,2));
+                for (byte rank = 2; rank <= 3; rank++) {
+                    byte[] frame = Protocol.Frame(Page(rank,7,2)); frame[7] = 8;
+                    frame[frame.Length - 2] = Sum(frame,4,frame.Length - 2);
+                    Assert(Protocol.ValidateTransmit(frame) != null, "raw menu8 rejected");
+                }
                 Invalid(Page(1,0,31));
                 var p = Protocol.Home(); p.Delay = 49; Invalid(p);
                 p.Delay = 60001; Invalid(p);
@@ -209,6 +251,18 @@ namespace Ch584ScreenVerifier
                     Assert(loaded.Count==1 && loaded[0].Name==p.Name,"XML page/name");
                     Equal(Protocol.Frame(p),Protocol.Frame(loaded[0]),"XML frame roundtrip");
                     Assert(loaded[0].Labels.SequenceEqual(p.Labels),"XML labels");
+                });
+                Run("XML: return-home pages preserve metadata and remain transmit-compatible",delegate {
+                    var pages = Protocol.Defaults().Where(x => x.Menu == 7).Select(Protocol.Clone).ToList();
+                    pages[1].Values = new ushort[] {2,5};
+                    Protocol.SaveXml(fixture,pages);
+                    var loaded = Protocol.LoadXml(fixture);
+                    Assert(loaded.Count == 2,"return-home XML page count");
+                    for (int i = 0; i < loaded.Count; i++) {
+                        Assert(loaded[i].Menu == 7 && loaded[i].Rank == pages[i].Rank,"return-home XML codes");
+                        Equal(Protocol.Frame(pages[i]),Protocol.Frame(loaded[i]),"return-home XML wire roundtrip");
+                        Assert(Protocol.ValidateTransmit(Protocol.Frame(loaded[i])) == null,"return-home XML transmit allowed");
+                    }
                 });
                 Run("XML: legacy initial-anchor profile imports but cannot transmit",delegate {
                     string reference = args.Length>0 ? args[0] : @"D:\y\tools\页面轮播\初锚力版\初锚力页_重置返回切换_50ms.xml";

@@ -43,7 +43,9 @@ python -B tools/ui_preview/run_preview.py --scope menus --output menu_output --p
 
 边界统计同时检查黑字和 `draw_color=0` 的反白文字。宿主启动时用真实字库绘制两个故意越界的反白字符，分别验证右侧越界与完全位于屏幕左侧的情况；探针只验证检查器，不计入固件页面的越界统计。`summary.json` 单独报告探针失败数量。
 
-`menus` 允许菜单页面视觉变化，要求所有 `home_*`、`message_*`、`save_message_tick*`、`power_off_message_tick10` 和 `restart_confirmation` 在 before/after 间逐像素一致。名称、信号和电压页以 `chu_num2=0/1/2/65535` 绘制；2显示11–20，其余显示1–10，检查两页不同和兼容页码一致。
+`menus` 允许菜单页面视觉变化，要求所有 `home_*`、`message_*`、`save_message_tick*`、`power_off_message_tick10` 和 `restart_confirmation` 在 before/after 间逐像素一致。名称、信号和电压页以 `chu_num2=0/1/2/65535` 绘制，各页码均显示全部20路，检查页码不能改变通道集合。
+
+2026-10-07：三级页面移除顶部标题；20路页面采用11px正文、13px行距，编号和名称/读数在各自区域居中，底部中央保留返回按钮。新增跨菜单残留 `re_flag=3/4/5`、菜单7返回主页、末行下伸字符回归。本轮快照和预览在 `output/detail_return_20261007/`，统一布局复验在 `output/detail_return_unified_20261007/`；原因、固件和验收步骤见 [三级页面返回与布局修正](../DETAIL_PAGE_FIX.md)。
 
 分阶段运行可使用 `--phase before` 或 `--phase after`，然后通过下面命令合并比较报告：
 

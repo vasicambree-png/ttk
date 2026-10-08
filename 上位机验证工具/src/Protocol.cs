@@ -23,9 +23,9 @@ namespace Ch584ScreenVerifier
     public static class Protocol
     {
         internal const int MaximumFrameLength = 512;
-        private static readonly int[] MenuCounts = { 4, 8, 16, 23, 8, 5, 10 };
+        private static readonly int[] MenuCounts = { 4, 8, 16, 23, 8, 5, 10, 2 };
         private static readonly string[] MenuNames =
-            { "地址分区", "组网测试", "设备绑定", "安装调试", "上传设置", "其他设置", "信息汇总" };
+            { "地址分区", "组网测试", "设备绑定", "安装调试", "上传设置", "其他设置", "信息汇总", "返回主页" };
         private static readonly string[] SensorNames =
             { "无数据", "锚杆", "激光", "位移2", "位移4", "位移6", "位移8", "裂缝", "倾角", "应力", "液位", "微震", "地音", "测试" };
         private static readonly string[] MessageNames =
@@ -47,8 +47,8 @@ namespace Ch584ScreenVerifier
             }
             else if (page.Rank == 2 || page.Rank == 3)
             {
-                if (page.Menu > 6)
-                    return "当前固件仅接收二级菜单 0～6；菜单 7（返回主页）应改用等级 1 的首页帧。";
+                if (page.Menu >= MenuCounts.Length)
+                    return "当前固件仅接收二级菜单 0～7；返回主页菜单确认后由主控发送等级 1 的首页帧。";
                 if (page.Menu == 6 && count == 4)
                     return "此配置是旧 4 参数初锚力页；当前菜单 6 是信息汇总，要求原 8 参数加 chu_num2/re_flag 共 10 参数。不能直接发送，也不会自动改写旧页面语义。";
                 if (count != MenuCounts[page.Menu])
@@ -288,13 +288,16 @@ namespace Ch584ScreenVerifier
                 case 6:
                     labels = "遗留长度值1|遗留长度值2|遗留长度值3|遗留AD值1|遗留AD值2|遗留AD值3|遗留旧长度|遗留新长度";
                     original = new ushort[] { 1234, 5678, 9012, 1000, 2000, 3000, 1234, 5678 }; break;
+                case 7:
+                    labels = "";
+                    original = new ushort[0]; break;
                 default: throw new ArgumentOutOfRangeException("menu");
             }
             ushort[] values = new ushort[original.Length + 2];
             Array.Copy(original, values, original.Length);
             values[values.Length - 2] = 1;
             values[values.Length - 1] = reFlag;
-            PageSpec page = NewPage(name, rank, menu, labels + "|子页页码 chu_num2（1/2）|子页选择 re_flag（0菜单，1解绑列表，2绑定扫描，3信号，4电压，5名称，6恢复确认）", values);
+            PageSpec page = NewPage(name, rank, menu, (labels.Length == 0 ? "" : labels + "|") + "子页页码 chu_num2（1/2）|子页选择 re_flag（0菜单，1解绑列表，2绑定扫描，3信号，4电压，5名称，6恢复确认）", values);
             page.Focus = focus;
             return page;
         }
@@ -303,8 +306,9 @@ namespace Ch584ScreenVerifier
         {
             List<PageSpec> pages = new List<PageSpec>();
             pages.Add(Home());
-            for (byte menu = 0; menu < 7; menu++)
+            for (byte menu = 0; menu < MenuNames.Length; menu++)
                 pages.Add(MenuPage(MenuNames[menu] + " · 二级菜单", 2, menu, 0, 0));
+            pages.Add(MenuPage("返回主页 · 三级确认页（主控确认后下发首页）", 3, 7, 0, 0));
             PageSpec results = MenuPage("组网结果（模拟统计）", 3, 1, 0, 0);
             results.Values[5] = 1; pages.Add(results);
             pages.Add(MenuPage("地址分区 · 主机号焦点", 3, 0, 1, 0));

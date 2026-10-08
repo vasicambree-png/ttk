@@ -997,8 +997,8 @@ uint8_t parse_received_frame(uint8_t *rx_buffer, uint16_t data_len, data_LIST *p
           else if (menu_rank == 2u || menu_rank == 3u)
           {
               /* Each menu includes its data plus trailing page/re_flag. */
-              static const uint8_t min_params[7] = {4u, 8u, 16u, 23u, 8u, 5u, 10u};
-              if (rank2 >= 7u || param_cnt < min_params[rank2]) return 5;
+              static const uint8_t min_params[8] = {4u, 8u, 16u, 23u, 8u, 5u, 10u, 2u};
+              if (rank2 >= sizeof(min_params) || param_cnt < min_params[rank2]) return 5;
           }
           else if (menu_rank == 6u)
           {
@@ -1068,7 +1068,7 @@ uint8_t parse_received_frame(uint8_t *rx_buffer, uint16_t data_len, data_LIST *p
                       pData->UI_main.chu_num2 = param_data[param_cnt - 2];
                       pData->UI_main.re_flag  = (uint8_t)param_data[param_cnt - 1];
                   }
-                  UI_Select = rank2;   // 直接使用0~6索引
+                  UI_Select = rank2;   // 直接使用0~7索引
                   switch (rank2) {
                       case 0: {   // data_addr1
                           if (param_cnt < 2) return 5;
@@ -1141,8 +1141,10 @@ uint8_t parse_received_frame(uint8_t *rx_buffer, uint16_t data_len, data_LIST *p
                           pData->Menu_rank7.new_len = param_data[pos++];
                           break;
                       }
+                      case 7:     // 返回主页：只携带公共 chu_num2/re_flag，不写业务参数
+                          break;
                       default:
-                          return 5;   // 无效 rank2（0~6之外）
+                          return 5;   // 无效 rank2（0~7之外）
                   }
                   break;
               }

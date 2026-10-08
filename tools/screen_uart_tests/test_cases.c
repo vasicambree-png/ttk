@@ -194,6 +194,60 @@ int main(void)
     CHECK(init_calls == 1 && g_ui_reinit_req == 0);
     CHECK(Rx_sleep_flag == 1 && off_calls == 2 && on_calls == 2);
     puts("PASS: expired deferred rank5 request cannot reinitialize or reopen display");
+
+    /* Return-home is menu 7, with only the two shared metadata words. */
+    reset();
+    {
+        uint16_t metadata[] = { 2, 5 };
+        screen_power_t policy;
+        uint8_t selected;
+        len = make_page(frame, 2, 7, 0, metadata, 2);
+        CHECK(len == 16);
+        enqueue(frame, len); app_uart_process(); pump(5);
+        CHECK(Data_list1.menu_rank == 2 && Data_list1.rank2_addr == 7 && UI_Select == 7);
+        CHECK(Data_list1.UI_main.chu_num2 == 2 && Data_list1.UI_main.re_flag == 5);
+        CHECK(last_drawn.menu_rank == 2 && last_drawn.rank2_addr == 7 && draws == 1);
+        CHECK(screen_power.seen && screen_power.menu == 7 && g_frame_last_sec == 0);
+
+        metadata[0] = 1; metadata[1] = 4;
+        len = make_page(frame, 3, 7, 1, metadata, 2);
+        enqueue(frame, len); app_uart_process(); pump(5);
+        CHECK(last_drawn.menu_rank == 3 && last_drawn.rank2_addr == 7 && last_drawn.rank3_addr == 1);
+        CHECK(last_drawn.UI_main.chu_num2 == 1 && last_drawn.UI_main.re_flag == 4);
+        CHECK(draws == 2 && UI_Select == 7);
+
+        saved = Data_list1; policy = screen_power; selected = UI_Select;
+        g_frame_last_sec = 9;
+        mock_clock += 100;
+        for (i = 0; i < 2; ++i) {
+            len = make_page(bad, 3, 7, 0, metadata, (uint8_t)i);
+            CHECK(parse_received_frame(bad, len, &Data_list1) != 0);
+            CHECK(memcmp(&saved, &Data_list1, sizeof(saved)) == 0);
+            CHECK(memcmp(&policy, &screen_power, sizeof(policy)) == 0);
+            CHECK(UI_Select == selected && g_frame_last_sec == 9);
+        }
+        len = make_page(bad, 3, 8, 0, metadata, 2);
+        CHECK(parse_received_frame(bad, len, &Data_list1) != 0);
+        CHECK(memcmp(&saved, &Data_list1, sizeof(saved)) == 0);
+        CHECK(memcmp(&policy, &screen_power, sizeof(policy)) == 0);
+        CHECK(UI_Select == selected && g_frame_last_sec == 9);
+        len = make_page(bad, 3, 7, 0, metadata, 2);
+        CHECK(parse_received_frame(bad, (uint16_t)(len - 1), &Data_list1) != 0);
+        bad[len - 2] ^= 0xff;
+        CHECK(parse_received_frame(bad, len, &Data_list1) != 0);
+        CHECK(memcmp(&saved, &Data_list1, sizeof(saved)) == 0);
+        CHECK(memcmp(&policy, &screen_power, sizeof(policy)) == 0);
+        CHECK(UI_Select == selected && g_frame_last_sec == 9);
+
+        /* The controller completes confirmation with its normal home frame. */
+        len = make_page(frame, 1, 0, 0, home, 11);
+        enqueue(frame, len); app_uart_process(); pump(5);
+        CHECK(last_drawn.menu_rank == 1 && Data_list1.menu_rank == 1 && draws == 3);
+        len = make_page(frame, 2, 7, 0, metadata, 2);
+        enqueue(frame, len); app_uart_process(); pump(5);
+        CHECK(last_drawn.menu_rank == 2 && last_drawn.rank2_addr == 7 && draws == 4);
+    }
+    puts("PASS: return-home menu 7 accepts metadata, rejects incomplete/unknown frames and reenters after home");
     printf("%u checks, %u failures\n", checks, failures);
     return failures ? 1 : 0;
 }
