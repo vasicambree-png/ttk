@@ -845,14 +845,6 @@ static void ui_menu_field(uint16_t y, const char *label, const char *value,
     u8g2_SetDrawColor(&u8g2, 0);
 }
 
-static void ui_menu_detail_title(uint8_t menu)
-{
-    u8g2_SetDrawColor(&u8g2, 0u);
-    u8g2_DrawXBMP(&u8g2, 118u, 8u, 13u, 13u, ui_menu_nav_icons[menu]);
-    ui_menu_text(141u, 20u, Menu_List[menu].name, 18u);
-    u8g2_DrawHLine(&u8g2, 119u, 26u, 254u);
-}
-
 static void ui_menu_header(uint8_t menu)
 {
     if (menu >= MAIN_LEN) menu = 0u;
@@ -860,11 +852,7 @@ static void ui_menu_header(uint8_t menu)
     u8g2_DrawBox(&u8g2, 113u, 1u, 266u, 166u);
     u8g2_SetDrawColor(&u8g2, 0);
     u8g2_DrawRFrame(&u8g2, 114u, 5u, 264u, 159u, 4u);
-    if (Data_list1.menu_rank == 3u)
-    {
-        ui_menu_detail_title(menu);
-        return;
-    }
+    /* Keep the same icon, title baseline and divider at menu ranks 2 and 3. */
     u8g2_DrawXBMP(&u8g2, 118u, 10u, 29u, 27u, ui_menu_title_icons[menu]);
     ui_menu_text(156u, 31u, Menu_List[menu].name, 18u);
     u8g2_DrawHLine(&u8g2, 119u, 42u, 254u);
@@ -1622,23 +1610,16 @@ void return_main_Control(void)
     u8g2_DrawBox(&u8g2, 113u, 1u, 266u, 166u);
     u8g2_SetDrawColor(&u8g2, 0u);
     u8g2_DrawXBMP(&u8g2, 113u, 1u, 266u, 166u, ui_menu_return_page);
-    if (Data_list1.menu_rank == 3u)
-    {
-        /* Replace the baked-in title strip with the compact detail header. */
-        u8g2_SetDrawColor(&u8g2, 1u);
-        u8g2_DrawBox(&u8g2, 118u, 6u, 256u, 37u);
-        u8g2_SetDrawColor(&u8g2, 0u);
-        ui_menu_detail_title(7u);
-    }
+    /* The reference bitmap carries the same full-size title at both levels. */
     /* Controller version is encoded in tenths (10 = V1.0). */
     sprintf(version, "V%u.%u", (unsigned int)(Data_list1.UI_main.version / 10u),
             (unsigned int)(Data_list1.UI_main.version % 10u));
-    /* Reserve the lower-right corner; keep the brand slogan to its left. */
+    /* Enlarge the controller-supplied version while retaining the footer slogan. */
     u8g2_SetDrawColor(&u8g2, 1u);
-    u8g2_DrawBox(&u8g2, 119u, 140u, 254u, 18u);
+    u8g2_DrawBox(&u8g2, 119u, 134u, 254u, 26u);
     u8g2_SetDrawColor(&u8g2, 0u);
     ui_text_draw(139u, 153u, "精确 · 稳定 · 可靠", 11u);
-    ui_text_draw((uint16_t)(368u - ui_text_width(version, 11u)), 153u, version, 11u);
+    ui_text_draw((uint16_t)(368u - ui_text_width(version, 18u)), 155u, version, 18u);
 }
 
 
