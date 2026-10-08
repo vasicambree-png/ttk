@@ -119,7 +119,7 @@ def report(phases: list[str], output: Path, scope: str) -> dict:
     lines += ["", f"{retained_label}逐像素对比：{len(comparisons)} 个用例，" +
               ("全部相同。" if comparisons and result["retained_pages_pixel_identical"] else "有变化或尚未运行完整对比。"), "",
               "主页用例包括两页正常/空通道/uint16 极值、host_num=0、普通最大发送地址、sub_num 最大值、倾角极值、开关机状态和发送地址 0/121/122。每个用例检查三次绘制：初次、连续刷新、重新初始化离线绘图上下文。", "",
-              "主页分页契约检查：before 按实际绘图识别并保留旧版状态行/底部统计栏检查；after 两页共用 (9,5) 的 88×44 Logo，顶部状态或三项统计基线为44，两列数据均为18px、22px行距、基线70/92/114/136/158。检查完整通道号、类型/数值/单位实际墨迹不相交且落在各自行框内、最长地址信息完整显示；等待值与实际零值分别覆盖两页。逐用例结果见 `cases.tsv` 的 `region_violations` 列、`draws.tsv` 的 `HOME_REGIONS` / `CUSTOM_INK` 和 `text_contract.json`。", "",
+              "主页分页契约检查：before 按实际绘图识别旧版布局；after 两页共用 (9,5) 的88×44 Logo与两翼各两条斜线。第一页基线44为分站号/本机号，右上电压基线20，13×11无线图标在(359,21)；第二页右上状态基线20、绑定数/台/已用通道基线44，无电压、无线图标、报警，台与数字分开4px。两列数据均18px、22px行距、基线70/92/114/136/158。检查真实墨迹、最长地址、等待和实际零值、无线0/1/2/3/4/255图标选择；主控字段真实语义不由绘图测试证明。逐用例结果见 `cases.tsv`、`draws.tsv` 和 `text_contract.json`。", "",
               "每次绘制前后比较页面输入、20 通道、绑定表、扫描缓存、绑定数量、告警数量、名称检查计数和当前消息码。所有页面检查绘图前后的位图透明模式。", "",
               "文字边界统计包含 draw_color=0 的反白文字；不因像素最终为白色而跳过。宿主启动时用真实字库验证右侧越界及整体位于屏幕左侧的反白文字都能被检出。", "",
               "输出：原生分辨率 PNG、" + ("每个用例的 `*_3x.png`。" if scope in ("menus", "unified") else "`after/home_example_4x.png` 及两页正常画面的 `home_page1_3x.png` / `home_page2_3x.png`。") + "放大均为整数倍最近邻；另有 `draws.tsv`、`cases.tsv` 和 `report.json`。", "",

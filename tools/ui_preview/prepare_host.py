@@ -87,7 +87,7 @@ def main() -> None:
     (out / "ui_under_test.c").write_text(text, encoding="utf-8")
     (out / "CONFIG.h").write_text(CONFIG, encoding="utf-8")
     asset_hashes = {}
-    for asset_name in ("ui_home_assets.h", "ui_menu_assets.h"):
+    for asset_name in ("ui_home_assets.h", "ui_menu_assets.h", "ui_wireless_assets.h"):
         if f'#include "{asset_name}"' not in text:
             continue
         assets = FIRMWARE / "APP/include" / asset_name

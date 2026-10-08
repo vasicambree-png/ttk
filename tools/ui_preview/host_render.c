@@ -41,6 +41,7 @@ static int custom_glyph_active, custom_left, custom_top, custom_right, custom_bo
 static unsigned custom_points;
 static unsigned home_logo_count, home_logo_width, home_logo_height, home_new_layout;
 static unsigned home_header_bottom, home_state_baseline, home_stats_baseline;
+static unsigned home_relocated_layout, home_wifi_count;
 
 /* 主页分页契约检查区域（像素坐标，含边界）。
  *   状态行带：第 1 页必须有墨迹，第 2 页必须全白；
@@ -142,6 +143,8 @@ void u8g2_DrawRBox(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, u8g2_uint_t w, u8g2_
 void u8g2_DrawXBM(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, u8g2_uint_t w, u8g2_uint_t h, const uint8_t *b) { check_box("XBM", x, y, w, h); real_u8g2_DrawXBM(u, x, y, w, h, b); }
 void u8g2_DrawXBMP(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, u8g2_uint_t w, u8g2_uint_t h, const uint8_t *b) {
     check_box("XBMP", x, y, w, h);
+    if (home_page_expect && !strcmp(draw_pass, "primary") &&
+        x == 359u && y == 21u && w == 13u && h == 11u) ++home_wifi_count;
     if (home_page_expect && !strcmp(draw_pass, "primary") && x == 9u && y == 5u && w >= 60u && h >= 30u) {
         ++home_logo_count;
         home_logo_width = w;
@@ -220,6 +223,8 @@ void ui_preview_text(uint16_t x, uint16_t y, const char *text, uint8_t size, uns
             (x < 40u || (x >= 203u && x < 225u)) && y >= 60u && y <= 158u && badge_count < 32u)
             strcpy(badge_text[badge_count++], text);
         if (size == 18u) home_new_layout = 1u;
+        if (!strncmp(text, "分站号:", strlen("分站号:")) || !strcmp(text, "台") ||
+            (!strncmp(text, "状态:", strlen("状态:")) && y == 20u)) home_relocated_layout = 1u;
         if (!strncmp(text, "状态", strlen("状态")) ||
             !strcmp(text, "开机") || !strcmp(text, "关机")) {
             ++home_state_count;
@@ -310,6 +315,7 @@ static void render(const char *name, unsigned rank, unsigned menu, unsigned re, 
     badge_count = home_state_count = home_stats_count = 0;
     home_logo_count = home_logo_width = home_logo_height = home_new_layout = 0;
     home_header_bottom = home_state_baseline = home_stats_baseline = 0;
+    home_relocated_layout = home_wifi_count = 0;
     checked_draw();
     memcpy(primary, pixels, sizeof(primary));
     save_pixels(name);
@@ -359,7 +365,9 @@ static void check_home_contract(unsigned page) {
         fprintf(draw_log, "HOME_CHANNEL_SET\t%s\t%u\t%u\n", case_name, page, badge_count);
     }
     if (home_new_layout && (home_logo_count != 1u || home_logo_width != 88u || home_logo_height != 44u ||
-        home_header_bottom || (page == 1u ? home_state_baseline != 44u : home_stats_baseline != 44u))) {
+        home_header_bottom || (home_relocated_layout ?
+            (page == 2u && (home_state_baseline != 20u || home_stats_baseline != 44u)) :
+            (page == 1u ? home_state_baseline != 44u : home_stats_baseline != 44u)))) {
         ++region_violation_total;
         fprintf(draw_log, "HOME_HEADER_CONTRACT\t%s\t%u\t%u\t%u\t%u\n", case_name, page,
                 home_logo_count, home_logo_width, home_logo_height);
@@ -367,11 +375,32 @@ static void check_home_contract(unsigned page) {
     if (page == 1u) {
         if (status_ink < home_p1_status_min_ink) home_p1_status_min_ink = status_ink;
         if (stats_ink > home_p1_stats_max_ink) home_p1_stats_max_ink = stats_ink;
-        if (home_state_count != 1u || home_stats_count) ++region_violation_total;
+        if (home_state_count != (home_relocated_layout ? 0u : 1u) || home_stats_count) ++region_violation_total;
     } else {
         if (status_ink > home_p2_status_max_ink) home_p2_status_max_ink = status_ink;
         if (stats_ink < home_p2_stats_min_ink) home_p2_stats_min_ink = stats_ink;
-        if (home_state_count || home_stats_count != 3u || status_ink || !stats_ink) ++region_violation_total;
+        if (home_state_count != (home_relocated_layout ? 1u : 0u) ||
+            home_stats_count != (home_relocated_layout ? 2u : 3u) || status_ink || !stats_ink)
+            ++region_violation_total;
+    }
+    if (home_relocated_layout) {
+        unsigned x, y, wing_failures = 0;
+        unsigned wifi_ink = ink_in_region(359u, page == 2u ? 22u : 21u, 371u, 31u);
+        uint32_t wifi_hash = 2166136261u;
+        for (y = 4u; y < 24u; ++y) {
+            unsigned left = 78u + y - 2u;
+            unsigned gap = 85u + y - 4u;
+            for (x = left; x < left + 11u; ++x) {
+                unsigned expected = x != gap && x != gap + 1u;
+                if (pixels[y][x] != expected || pixels[y][383u - x] != expected) ++wing_failures;
+            }
+        }
+        for (y = 21u; y <= 31u; ++y)
+            for (x = 359u; x <= 371u; ++x) wifi_hash = (wifi_hash ^ pixels[y][x]) * 16777619u;
+        if (wing_failures || home_wifi_count != (page == 1u ? 1u : 0u) ||
+            (page == 2u && wifi_ink)) ++region_violation_total;
+        fprintf(draw_log, "HOME_TOP_LAYOUT\t%s\t%u\t%u\t%u\t%u\t%u\n", case_name, page,
+                home_wifi_count, wifi_hash, wifi_ink, wing_failures);
     }
     fprintf(draw_log, "HOME_REGIONS\t%s\t%u\t%u\t%u\n", case_name, page, status_ink, stats_ink);
 }
@@ -695,6 +724,23 @@ int main(int argc, char **argv) {
     render_home("home_example", 1);
     init_data(0);
     render_home("home_page2", 2);
+    for (m = 0; m < 6; ++m) {
+        static const uint8_t signals[] = {0u, 1u, 2u, 3u, 4u, 255u};
+        init_data(0);
+        Data_list1.UI_main.Lora_rssi = signals[m];
+        snprintf(name, sizeof(name), "home_wifi_%u", signals[m]);
+        render_home(name, 1);
+    }
+    for (m = 0; m < 2; ++m) {
+        for (s = 0; s < 2; ++s) {
+            init_data(0);
+            Data_list1.UI_main.state = (uint8_t)m;
+            g_binding_count = (uint8_t)(s ? 20u : 0u);
+            snprintf(name, sizeof(name), "home_page2_state_%s_bound_%u", m ? "on" : "off", g_binding_count);
+            render_home(name, 2);
+        }
+    }
+    init_data(0);
     u8g2_SetBitmapMode(&u8g2, 1);
     render_home("home_bitmap_mode_1", 1);
     u8g2_SetBitmapMode(&u8g2, 0);

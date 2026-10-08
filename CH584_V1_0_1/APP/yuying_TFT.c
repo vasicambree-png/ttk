@@ -9,6 +9,7 @@
 #include "observer.h"
 #include "ui_home_assets.h"
 #include "ui_menu_assets.h"
+#include "ui_wireless_assets.h"
 extern u8g2_t u8g2;
 data_LIST Data_list1;
 
@@ -485,8 +486,8 @@ void UI_Control(data_LIST *list)
 /* ==================================================================
  * 主页面（menu_rank == 1）：按单色 384×168 屏幕适配工业仪表版式
  *
- * 版式：双层切角外框；品牌、标题与电池值同排；状态和地址占一行；
- *       左右切角数据栏各 5 行；底部三段统计栏。
+ * 版式：双层切角外框；品牌、标题与页属信息同排；地址/统计独占一行；
+ *       左右切角数据栏各 5 行；第二页显示设备/通道统计。
  *
  * 网格：**5 行 × 2 列 = 10 格，每格 1 个通道**，右列紧接左列：
  *   第 1 页 = 通道 1..10（左列 1..5，右列 6..10）
@@ -496,9 +497,9 @@ void UI_Control(data_LIST *list)
  *   数值：MG/位移/应力/倾角 = 原始值/10，保留一位小数（倾角按有符号），激光原样
  *   单位：kN（锚杆）/ mm（位移·激光·裂缝）/ °（倾角）/ MPa（应力）（契约 §4.2）
  *
- * 数据分工：STM32 仍提供全部元数据；主页按参考图显示状态/本机号/分站/电池，
- *           版本和信号字段暂不占用主页版面；
- *           CH584M 本地提供 已绑定数、已用通道数、告警数、20 通道类型与数值。
+ * 数据分工：STM32 仍提供状态/本机号/分站号/电池/LoRa信号值，
+ *           版本字段暂不占用主页版面；
+ *           CH584M 本地提供 已绑定数、已用通道数、20 通道类型与数值。
  * ================================================================== */
 /* MAIN_* 几何常量仍供其他20通道子页复用，数值保持原样。 */
 #define MAIN_GRID_TOP     53                        /* 网格上边线 */
@@ -528,7 +529,7 @@ void UI_Control(data_LIST *list)
 #define HOME_STATUS_BASELINE      44u
 #define HOME_STATUS_LEFT          102u
 #define HOME_STATUS_HOST_RIGHT    372u
-#define HOME_STATUS_MIN_GAP       4u
+#define HOME_BOUND_UNIT_GAP       4u
 
 /* 切角横纵跨度相等，保持 45 度直线，供主页各类边框共用。 */
 static void ui_main_cut_frame(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
@@ -563,29 +564,28 @@ static void ui_main_draw_brand(void)
                   ui_home_brand);
 }
 
-/* 斜牌与双斜纹均为 45 度平行直线，按屏幕中心镜像。 */
+/* Two diagonal bands per wing, mirrored around the screen center. */
 static void ui_main_draw_title(void)
 {
-    uint8_t row, stripe, offset;
+    uint8_t row, offset;
     uint16_t left;
 
     /* Leave the enlarged wordmark clear below the diagonal wings. */
     for (row = 0u; row < 22u; row++)
     {
-        left = (uint16_t)(72u + row);
-        u8g2_DrawHLine(&u8g2, left, (uint16_t)(2u + row), 17u);
-        u8g2_DrawHLine(&u8g2, (uint16_t)(383u - left - 16u),
-                       (uint16_t)(2u + row), 17u);
+        left = (uint16_t)(78u + row);
+        u8g2_DrawHLine(&u8g2, left, (uint16_t)(2u + row), 11u);
+        u8g2_DrawHLine(&u8g2, (uint16_t)(383u - left - 10u),
+                       (uint16_t)(2u + row), 11u);
     }
     u8g2_SetDrawColor(&u8g2, 0);
-    for (stripe = 0u; stripe < 2u; stripe++)
-        for (offset = 0u; offset < 2u; offset++)
-        {
-            left = (uint16_t)(79u + stripe * 6u + offset);
-            u8g2_DrawLine(&u8g2, left, 4u, (uint16_t)(left + 21u), 25u);
-            u8g2_DrawLine(&u8g2, (uint16_t)(383u - left), 4u,
-                          (uint16_t)(383u - left - 21u), 25u);
-        }
+    for (offset = 0u; offset < 2u; offset++)
+    {
+        left = (uint16_t)(85u + offset);
+        u8g2_DrawLine(&u8g2, left, 4u, (uint16_t)(left + 21u), 25u);
+        u8g2_DrawLine(&u8g2, (uint16_t)(383u - left), 4u,
+                      (uint16_t)(383u - left - 21u), 25u);
+    }
     u8g2_SetDrawColor(&u8g2, 1);
     u8g2_DrawHLine(&u8g2, 98u, 28u, 188u);
     u8g2_DrawXBMP(&u8g2, 112u, 6u, UI_HOME_TITLE_WIDTH, UI_HOME_TITLE_HEIGHT,
@@ -618,21 +618,24 @@ static void ui_main_meta_draw(uint16_t x, uint16_t baseline, const char *text, u
     ui_text_draw(x, baseline, text, size);
 }
 
-/* Both home headers share the font choice, baseline and balanced spacing. */
-static void ui_main_header_triplet(const char *left, const char *middle, const char *right)
+static void ui_main_draw_wireless(uint8_t signal)
 {
-    uint16_t left_w, middle_w, right_w, total_w, gap, middle_x, right_x;
+    /* This is a display-level convention for the controller's LoRa field. */
+    uint8_t icon = signal <= 3u ? signal : 4u;
+    u8g2_DrawXBMP(&u8g2, 359u, 21u, UI_WIRELESS_WIDTH, UI_WIRELESS_HEIGHT,
+                  ui_wireless_icons[icon]);
+}
+
+/* The optional device-count unit has its own explicit pixel gap. */
+static void ui_main_header_pair(const char *left, const char *unit, const char *right)
+{
     const uint8_t size = 14u;
-    left_w = ui_text_width(left, size);
-    middle_w = ui_text_width(middle, size);
-    right_w = ui_text_width(right, size);
-    total_w = (uint16_t)(left_w + middle_w + right_w);
-    gap = (uint16_t)((HOME_STATUS_HOST_RIGHT - HOME_STATUS_LEFT - total_w) / 2u);
-    middle_x = (uint16_t)(HOME_STATUS_LEFT + left_w + gap);
-    right_x = (uint16_t)(HOME_STATUS_HOST_RIGHT - right_w);
+    uint16_t right_x = (uint16_t)(HOME_STATUS_HOST_RIGHT - ui_text_width(right, size));
     ui_main_meta_draw(HOME_STATUS_LEFT, HOME_STATUS_BASELINE, left, size);
+    if (unit)
+        ui_main_meta_draw((uint16_t)(HOME_STATUS_LEFT + ui_text_width(left, size) +
+                                    HOME_BOUND_UNIT_GAP), HOME_STATUS_BASELINE, unit, size);
     ui_main_meta_draw(right_x, HOME_STATUS_BASELINE, right, size);
-    ui_main_meta_draw(middle_x, HOME_STATUS_BASELINE, middle, size);
 }
 
 /* 通道号在徽标中居中，并为两位数与框线保留一像素空白。 */
@@ -672,16 +675,15 @@ void UI_Main_Display(data_LIST *pData)
     ui_main_draw_brand();
     ui_main_draw_title();
 
-    /* 电池电压仍取主控字段，排版与参考图一致地置于右上角。 */
-    sprintf(buf, "%d.%d%dV",
-            pData->UI_main.vbat / 100, pData->UI_main.vbat % 100 / 10,
-            pData->UI_main.vbat % 100 % 10);
-    w = (uint16_t)ui_text_width(buf, 14u);
-    ui_draw((uint16_t)(HOME_HEADER_BATTERY_RIGHT - w), HOME_HEADER_BATTERY_BASE, buf);
-
-    /* ---------- 第 1 页专属：状态、本机号和分站号：只重排显示，不改字段来源 ---------- */
+    /* Page one owns the voltage and controller wireless indicator. */
     if (page == 1u)
     {
+        sprintf(buf, "%d.%d%dV",
+                pData->UI_main.vbat / 100, pData->UI_main.vbat % 100 / 10,
+                pData->UI_main.vbat % 100 % 10);
+        w = (uint16_t)ui_text_width(buf, 14u);
+        ui_draw((uint16_t)(HOME_HEADER_BATTERY_RIGHT - w), HOME_HEADER_BATTERY_BASE, buf);
+        ui_main_draw_wireless(pData->UI_main.Lora_rssi);
         if (pData->UI_main.send_host_num == 122u)      sprintf(send_str, "分站");
         else if (pData->UI_main.send_host_num == 121u) sprintf(send_str, "无");
         else if (pData->UI_main.send_host_num == 0u)   sprintf(send_str, "中继");
@@ -689,20 +691,17 @@ void UI_Main_Display(data_LIST *pData)
 
         {
             char station_str[20];
-            const char *state = (pData->UI_main.state == 1) ? "状态:开机" : "状态:关机";
             sprintf(buf, "本机号:%d-->%s", pData->UI_main.host_num, send_str);
-            sprintf(station_str, "分站:%d", pData->UI_main.sub_num);
-            /* Shorten labels for long addresses, keeping both pages at 14px. */
-            if (ui_text_width(state, 14u) + ui_text_width(station_str, 14u) +
-                ui_text_width(buf, 14u) + 2u * HOME_STATUS_MIN_GAP >
-                HOME_STATUS_HOST_RIGHT - HOME_STATUS_LEFT)
-            {
-                state = (pData->UI_main.state == 1) ? "状态:开机" : "状态:关机";
-                sprintf(station_str, "分站%d", pData->UI_main.sub_num);
-                sprintf(buf, "本机%d>%s", pData->UI_main.host_num, send_str);
-            }
-            ui_main_header_triplet(state, station_str, buf);
+            sprintf(station_str, "分站号:%d", pData->UI_main.sub_num);
+            ui_main_header_pair(station_str, NULL, buf);
         }
+    }
+    else
+    {
+        const char *state = pData->UI_main.state == 1u ? "状态:开机" : "状态:关机";
+        w = ui_text_width(state, 14u);
+        ui_main_meta_draw((uint16_t)(HOME_HEADER_BATTERY_RIGHT - w),
+                          HOME_HEADER_BATTERY_BASE, state, 14u);
     }
 
     /* ---------- 两页共用同一位置的左右数据框 ---------- */
@@ -752,14 +751,13 @@ void UI_Main_Display(data_LIST *pData)
         }
     }
 
-    /* ---------- 第 2 页专属：三段统计栏收至Logo右侧上方 ---------- */
+    /* Page two has device/channel counts, without the old alarm field. */
     if (page == 2u)
     {
         char bound_str[20], used_str[24];
-        sprintf(bound_str, "已绑定: %d", g_binding_count);
-        sprintf(used_str, "已用通道: %d", count_used_channels());
-        sprintf(buf, "报警: %d", (int)(g_name_err_count + g_volt_err_count));
-        ui_main_header_triplet(bound_str, used_str, buf);
+        sprintf(bound_str, "已绑定:%u", (unsigned int)g_binding_count);
+        sprintf(used_str, "已用通道:%d", count_used_channels());
+        ui_main_header_pair(bound_str, "台", used_str);
     }
     u8g2_SetBitmapMode(&u8g2, bitmap_mode);
 }
