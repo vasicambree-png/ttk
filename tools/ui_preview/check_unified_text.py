@@ -57,20 +57,20 @@ def check(output, home_only=False):
             states = [row for row in rows if row[3].startswith("状态")]
             is_page2 = pages[case] == 2
             voltage = [row for row in rows if re.fullmatch(r"\d+\.\d{2}V", row[3])]
-            wifi = [bitmap for bitmap in bitmaps[case] if bitmap[2:] == (13, 11)]
+            wifi = [bitmap for bitmap in bitmaps[case] if bitmap[2:] == (17, 13)]
             require(not any(row[3].startswith("报警:") for row in rows), case + ": alarm removed from home metadata")
             if not is_page2:
                 require(not states and len(voltage) == 1 and len(wifi) == 1,
                         case + ": page one shows voltage and wireless bitmap without status")
                 for value in voltage:
-                    require(value[1:3] == (23, 14) and value[0] + width(value) == 372,
+                    require(value[1:3] == (29, 16) and value[0] + width(value) == 376,
                             case + ": page-one voltage at the top-right baseline")
-                    require(len(wifi) == 1 and wifi[0] == (value[0] - 17, 12, 13, 11),
-                            case + ": wireless icon sits four pixels left of the voltage")
+                    require(len(wifi) == 1 and wifi[0] == (value[0] - 19, 18, 17, 13),
+                            case + ": enlarged wireless icon sits two pixels left of the enlarged voltage")
                 machine = next(row for row in rows if row[3].startswith("本机"))
                 station = next(row for row in rows if row[3].startswith("分站"))
-                require(machine[1:3] == (44, 14) and machine[0] + width(machine) == 372 and
-                        station[:3] == (102, 44, 14) and station[3].startswith("分站号:"),
+                require(machine[1:3] == (44, 14) and machine[0] + width(machine) == 366 and
+                        station[:3] == (108, 44, 14) and station[3].startswith("分站号:"),
                         case + ": full address labels use the shared 14px metadata font")
                 require(machine[0] - station[0] - width(station) >= 4,
                         case + ": longest station and machine groups retain a clear gap")
@@ -78,8 +78,8 @@ def check(output, home_only=False):
                 require(len(states) == 1 and not voltage and not wifi,
                         case + ": page two shows status without voltage or wireless bitmap")
                 for state in states:
-                    require(state[1:3] == (44, 14) and state[0] == 102 + (270 - width(state)) // 2 and
-                            state[3] in ("状态:开机", "状态:关机"), case + ": complete status centered between the statistics")
+                    require(state[1:3] == (23, 14) and state[0] + width(state) == 372 and
+                            state[3] in ("状态:开机", "状态:关机"), case + ": complete status at top right")
             stats = [row for row in rows if row[3].startswith(("已绑定:", "已用通道:"))]
             units = [row for row in rows if row[1] == 44 and row[3] == "台"]
             require((not is_page2 and not stats and not units) or
@@ -89,15 +89,12 @@ def check(output, home_only=False):
                 bound = next(row for row in stats if row[3].startswith("已绑定:"))
                 used = next(row for row in stats if row[3].startswith("已用通道:"))
                 unit = units[0]
-                require(bound[:3] == (102, 44, 14) and used[1:3] == (44, 14) and
-                        used[0] + width(used) == 372 and unit[1:3] == (44, 14),
+                require(bound[:3] == (108, 44, 14) and used[1:3] == (44, 14) and
+                        used[0] + width(used) == 366 and unit[1:3] == (44, 14),
                         case + ": binding and used channels retain the shared metadata baseline")
                 require(unit[0] - bound[0] - width(bound) == 4 and
                         used[0] - unit[0] - width(unit) >= 4,
                         case + ": binding count has a separate unit with a four-pixel advance gap")
-                require(len(states) == 1 and states[0][0] - unit[0] - width(unit) >= 4 and
-                        used[0] - states[0][0] - width(states[0]) >= 4,
-                        case + ": centered status leaves a clear gap to both statistic groups")
             if case in top_layouts:
                 page, wifi_count, wifi_hash, wifi_ink, wing_failures = top_layouts[case]
                 require(page == (2 if is_page2 else 1) and not wing_failures,
@@ -126,8 +123,8 @@ def check(output, home_only=False):
                     require(left <= x0 <= x1 <= right and 53 + 22 * row_index <= y0 <= y1 <= 73 + 22 * row_index,
                             case + ": ink inside its data cell " + text)
                 elif text.startswith("状态"):
-                    require(102 <= x0 <= x1 <= 372 and 31 <= y0 <= y1 <= 46,
-                            case + ": status ink inside the central metadata row")
+                    require(312 <= x0 <= x1 <= 372 and 10 <= y0 <= y1 <= 26,
+                            case + ": status ink inside the top-right header")
                 elif text.startswith(("本机", "分站", "已绑定:", "已用通道:")) or text == "台":
                     require(98 <= x0 <= x1 <= 372 and 31 <= y0 <= y1 <= 46,
                             case + ": header ink beside logo " + text)

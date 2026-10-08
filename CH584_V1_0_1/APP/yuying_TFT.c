@@ -524,13 +524,16 @@ void UI_Control(data_LIST *list)
 #define HOME_CELL_R_X     203
 #define HOME_NUM_W        24
 #define HOME_DATA_RIGHT   166
-#define HOME_HEADER_BATTERY_RIGHT 372u
-#define HOME_HEADER_BATTERY_BASE  23u
-#define HOME_WIRELESS_TOP         12u
-#define HOME_WIRELESS_GAP         4u
+#define HOME_HEADER_BATTERY_RIGHT 376u
+#define HOME_HEADER_BATTERY_BASE  29u
+#define HOME_HEADER_BATTERY_SIZE  16u
+#define HOME_HEADER_STATE_RIGHT   372u
+#define HOME_HEADER_STATE_BASE    23u
+#define HOME_WIRELESS_TOP         18u
+#define HOME_WIRELESS_GAP         2u
 #define HOME_STATUS_BASELINE      44u
-#define HOME_STATUS_LEFT          102u
-#define HOME_STATUS_HOST_RIGHT    372u
+#define HOME_STATUS_LEFT          108u
+#define HOME_STATUS_HOST_RIGHT    366u
 #define HOME_BOUND_UNIT_GAP       4u
 
 /* 切角横纵跨度相等，保持 45 度直线，供主页各类边框共用。 */
@@ -630,8 +633,7 @@ static void ui_main_draw_wireless(uint8_t signal, uint16_t voltage_x)
 }
 
 /* The optional device-count unit has its own explicit pixel gap. */
-static void ui_main_header_pair(const char *left, const char *unit, const char *right,
-                                const char *middle)
+static void ui_main_header_pair(const char *left, const char *unit, const char *right)
 {
     const uint8_t size = 14u;
     uint16_t right_x = (uint16_t)(HOME_STATUS_HOST_RIGHT - ui_text_width(right, size));
@@ -640,11 +642,6 @@ static void ui_main_header_pair(const char *left, const char *unit, const char *
         ui_main_meta_draw((uint16_t)(HOME_STATUS_LEFT + ui_text_width(left, size) +
                                     HOME_BOUND_UNIT_GAP), HOME_STATUS_BASELINE, unit, size);
     ui_main_meta_draw(right_x, HOME_STATUS_BASELINE, right, size);
-    if (middle)
-        ui_main_meta_draw((uint16_t)(HOME_STATUS_LEFT +
-                          (HOME_STATUS_HOST_RIGHT - HOME_STATUS_LEFT -
-                           ui_text_width(middle, size)) / 2u),
-                          HOME_STATUS_BASELINE, middle, size);
 }
 
 /* 通道号在徽标中居中，并为两位数与框线保留一像素空白。 */
@@ -690,8 +687,9 @@ void UI_Main_Display(data_LIST *pData)
         sprintf(buf, "%d.%d%dV",
                 pData->UI_main.vbat / 100, pData->UI_main.vbat % 100 / 10,
                 pData->UI_main.vbat % 100 % 10);
-        w = (uint16_t)ui_text_width(buf, 14u);
-        ui_draw((uint16_t)(HOME_HEADER_BATTERY_RIGHT - w), HOME_HEADER_BATTERY_BASE, buf);
+        w = ui_text_width(buf, HOME_HEADER_BATTERY_SIZE);
+        ui_main_meta_draw((uint16_t)(HOME_HEADER_BATTERY_RIGHT - w),
+                          HOME_HEADER_BATTERY_BASE, buf, HOME_HEADER_BATTERY_SIZE);
         ui_main_draw_wireless(pData->UI_main.Lora_rssi,
                               (uint16_t)(HOME_HEADER_BATTERY_RIGHT - w));
         if (pData->UI_main.send_host_num == 122u)      sprintf(send_str, "分站");
@@ -703,8 +701,15 @@ void UI_Main_Display(data_LIST *pData)
             char station_str[20];
             sprintf(buf, "本机号:%d-->%s", pData->UI_main.host_num, send_str);
             sprintf(station_str, "分站号:%d", pData->UI_main.sub_num);
-            ui_main_header_pair(station_str, NULL, buf, NULL);
+            ui_main_header_pair(station_str, NULL, buf);
         }
+    }
+    else
+    {
+        const char *state = pData->UI_main.state == 1u ? "状态:开机" : "状态:关机";
+        w = ui_text_width(state, 14u);
+        ui_main_meta_draw((uint16_t)(HOME_HEADER_STATE_RIGHT - w),
+                          HOME_HEADER_STATE_BASE, state, 14u);
     }
 
     /* ---------- 两页共用同一位置的左右数据框 ---------- */
@@ -760,8 +765,7 @@ void UI_Main_Display(data_LIST *pData)
         char bound_str[20], used_str[24];
         sprintf(bound_str, "已绑定:%u", (unsigned int)g_binding_count);
         sprintf(used_str, "已用通道:%d", count_used_channels());
-        const char *state = pData->UI_main.state == 1u ? "状态:开机" : "状态:关机";
-        ui_main_header_pair(bound_str, "台", used_str, state);
+        ui_main_header_pair(bound_str, "台", used_str);
     }
     u8g2_SetBitmapMode(&u8g2, bitmap_mode);
 }
