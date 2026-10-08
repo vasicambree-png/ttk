@@ -849,7 +849,7 @@ static void ui_menu_detail_title(uint8_t menu)
 {
     u8g2_SetDrawColor(&u8g2, 0u);
     u8g2_DrawXBMP(&u8g2, 118u, 8u, 13u, 13u, ui_menu_nav_icons[menu]);
-    ui_menu_text(141u, 20u, Menu_List[menu].name, 14u);
+    ui_menu_text(141u, 20u, Menu_List[menu].name, 18u);
     u8g2_DrawHLine(&u8g2, 119u, 26u, 254u);
 }
 
@@ -948,7 +948,7 @@ static void binding_device_list_page(uint8_t rank3)
     u8g2_SetDrawColor(&u8g2, 0u);
     u8g2_DrawRFrame(&u8g2, 2u, 1u, 380u, 166u, 4u);
     u8g2_DrawXBMP(&u8g2, 10u, 6u, 13u, 13u, ui_menu_nav_icons[2]);
-    ui_menu_text(29u, 16u, "设备绑定", 14u);
+    ui_menu_text(29u, 20u, "设备绑定", 18u);
     sprintf(line, "总设备数:%d台", g_binding_count);
     ui_text_draw(108u, 16u, line, 14u);
     n = g_binding_count;
@@ -987,7 +987,7 @@ static void binding_scan_page(uint8_t rank3)
     u8g2_SetDrawColor(&u8g2, 0u);
     u8g2_DrawRFrame(&u8g2, 2u, 1u, 380u, 166u, 4u);
     u8g2_DrawXBMP(&u8g2, 10u, 6u, 13u, 13u, ui_menu_nav_icons[2]);
-    ui_menu_text(29u, 16u, "设备绑定", 14u);
+    ui_menu_text(29u, 20u, "设备绑定", 18u);
     n = g_binding_count;
     if (n > MAX_BINDING_NUM) n = MAX_BINDING_NUM;
     sprintf(number, "已绑定设备:%u台", (unsigned int)n);
@@ -1080,7 +1080,7 @@ static void ui_param_frame(void)
     u8g2_SetDrawColor(&u8g2, 0u);
     u8g2_DrawRFrame(&u8g2, 2u, 1u, 380u, 166u, 4u);
     u8g2_DrawXBMP(&u8g2, 10u, 6u, 13u, 13u, ui_menu_nav_icons[UI_Select]);
-    ui_menu_text(29u, 16u, Menu_List[UI_Select].name, 14u);
+    ui_menu_text(29u, 20u, Menu_List[UI_Select].name, 18u);
     /* Compact header: preserve the original upper-right return position. */
     u8g2_DrawBox(&u8g2, 298u, 3u, 75u, 18u);
     u8g2_SetDrawColor(&u8g2, 1u);
@@ -1160,7 +1160,7 @@ void addr_Control(void)
     sprintf(value, "%d", Data_list1.Menu_rank1.set_host_num);
     ui_menu_field(99u, "本机地址:", value, ui_menu_selected(2u), ui_menu_selected(3u));
     u8g2_DrawXBMP(&u8g2, 325u, 73u, 47u, 52u, ui_menu_detail_address);
-    ui_menu_button(0u, "保存并重启", ui_menu_selected(4u));
+    ui_menu_button(0u, "保存并返回", ui_menu_selected(4u));
     ui_menu_button(1u, "不保存返回", ui_menu_selected(5u));
 }
 
@@ -1506,7 +1506,7 @@ void uploading_Control(void)
         ui_menu_control(189u, y, 86u, 22u, old_value, 0u, 1u);
         ui_menu_control(279u, y, 96u, 22u, new_value, ui_menu_selected(i), 1u);
     }
-    ui_menu_button(0u, "保存并重启", ui_menu_selected(3u));
+    ui_menu_button(0u, "保存并返回", ui_menu_selected(3u));
     ui_menu_button(1u, "不保存返回", ui_menu_selected(4u));
 }
 void Other_Settings_Control(void)
@@ -1519,7 +1519,7 @@ void Other_Settings_Control(void)
     ui_menu_field(107u, "通信状态:", Data_list1.Menu_rank6.state == 1 ? "开机" : "不开机",
                   ui_menu_selected(4u), ui_menu_selected(5u));
     u8g2_DrawXBMP(&u8g2, 326u, 68u, 46u, 58u, ui_menu_detail_other);
-    ui_menu_button(0u, "保存并重启", ui_menu_selected(6u));
+    ui_menu_button(0u, "保存并返回", ui_menu_selected(6u));
     ui_menu_button(1u, "不保存返回", ui_menu_selected(7u));
 }
 

@@ -88,9 +88,9 @@ def check(output):
                 name + ": forty data fields at eleven pixels and fourteen-pixel pitch")
         title = "信息汇总" if kind == 5 else "安装调试"
         subtitle = {3: "信号", 4: "电压", 5: "名称"}[kind]
-        require(len(rows) == 42 and (29, 16, 14, title) in rows and
+        require(len(rows) == 42 and (29, 20, 18, title) in rows and
                 not any(row[3] == subtitle for row in rows),
-                name + ": compact menu title retained without data subtitle")
+                name + ": full-size menu title retained without data subtitle")
         require(sum(row[3] == "返回" and row[0] >= 298 and row[1:3] == (16, 14)
                     for row in rows) == 1,
                 name + ": compact return at upper right")
@@ -107,10 +107,10 @@ def check(output):
                 name + ": no page indicator")
         data_ink = [row for row in inks[name] if 22 <= row[1] < 164 and row[3] >= 0]
         require(len(data_ink) == len(data), name + ": visible ink for every data field")
-        header_ink = [row for row in inks[name] if row[1] == 16 and row[3] >= 0]
+        header_ink = [row for row in inks[name] if row[1] < 22 and row[3] >= 0]
         require(len(header_ink) == 2 and all(7 <= row[3] <= row[5] <= 376 and
-                2 <= row[4] <= row[6] <= 20 for row in header_ink),
-                name + ": header ink fits compressed band")
+                2 <= row[4] <= row[6] <= 22 for row in header_ink),
+                name + ": header ink fits above the data grid")
         for i, a in enumerate(header_ink):
             for b in header_ink[i + 1:]:
                 require(a[5] < b[3] or b[5] < a[3],
@@ -177,8 +177,8 @@ def check(output):
                         int(case["menu"]) == 2 and int(case["subpage"]) in (1, 2)
             if not full_data:
                 titles = ("地址分区", "组网测试", "设备绑定", "安装调试", "上传设置", "其他设置", "信息汇总", "返回主页")
-                require((141, 20, 14, titles[int(case["menu"])]) in records[case["case"]],
-                        case["case"] + ": compact third-level detail title restored")
+                require((141, 20, 18, titles[int(case["menu"])]) in records[case["case"]],
+                        case["case"] + ": full-size third-level detail title restored")
     for menu in range(8):
         if menu == 2:
             continue
@@ -222,7 +222,7 @@ def check(output):
             column_step = 189 if expected_count <= 20 else 92
             row_step = 11 if expected_count <= 20 else 13
             name_width = 147 if expected_count <= 20 else 64
-            require((29, 16, 14, "设备绑定") in rows and
+            require((29, 20, 18, "设备绑定") in rows and
                     (108, 16, 14, f"已绑定设备:{expected_count}台") in rows and
                     sum(row[3] == "保存目前设备" for row in rows) == 1 and
                     sum(row[3] == "返回" for row in rows) == 1 and
@@ -276,7 +276,7 @@ def check(output):
                     require(a[5] < b[3] or b[5] < a[3] or a[6] < b[4] or b[6] < a[4],
                             name + ": device and prefix ink do not overlap")
             continue
-        require((29, 16, 14, "设备绑定") in rows and
+        require((29, 20, 18, "设备绑定") in rows and
                 sum(row[3] == "解绑" for row in rows) == 1 and
                 sum(row[3] == "返回" for row in rows) == 1 and
                 not any(row[3] == "地址分区" for row in rows),
@@ -285,7 +285,7 @@ def check(output):
         require(len(counts) == 1 and counts[0][:3] == (108, 16, 14),
                 name + ": device count uses title size and device unit")
         header_ink = [row for row in inks[name] if row[1] < 22 and row[3] >= 0]
-        require(len(header_ink) == 2 and all(2 <= row[4] <= row[6] <= 20 for row in header_ink),
+        require(len(header_ink) == 2 and all(2 <= row[4] <= row[6] <= 22 for row in header_ink),
                 name + ": binding header ink fits top band")
         for i, a in enumerate(header_ink):
             for b in header_ink[i + 1:]:
