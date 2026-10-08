@@ -150,8 +150,9 @@ def check(output, home_only=False):
                     case + ": status and binding-count limits displayed together")
     wifi_hashes = {value: top_layouts.get(f"home_wifi_{value}", (None,) * 5)[2] for value in (0, 1, 2, 3, 4, 255)}
     require(all(value is not None for value in wifi_hashes.values()) and
-            len({wifi_hashes[value] for value in (0, 1, 2, 3, 4)}) == 5 and wifi_hashes[4] == wifi_hashes[255],
-            "wireless discrete signal states have distinct bitmaps and unknown values share a fallback")
+            len({wifi_hashes[value] for value in (0, 1, 2, 3)}) == 4 and
+            wifi_hashes[0] == wifi_hashes[4] == wifi_hashes[255],
+            "wireless active levels stay distinct and inactive/unsupported levels share the crossed icon")
     for case in ("home_empty", "home_page2_empty"):
         require(count(case, "通道") == 0 and count(case, "--") == 20,
                 case + ": unknown channels use placeholders before binding")

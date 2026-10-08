@@ -69,7 +69,10 @@ def large_icon(level):
                 for low, high in arcs[3 - (level or 3):])
             ink = ink or dx * dx + (y - 18) * (y - 18) <= 4
             if level == 0:
-                ink = ink or x == WIDTH - 2 - y * (WIDTH - 4) // (HEIGHT - 1)
+                # Cover the skipped columns at shallow steps: a continuous slash.
+                slash_x = WIDTH - 2 - y * (WIDTH - 4) // (HEIGHT - 1)
+                previous_x = WIDTH - 2 - max(0, y - 1) * (WIDTH - 4) // (HEIGHT - 1)
+                ink = ink or slash_x <= x <= min(WIDTH - 1, previous_x + 1)
             row.append("#" if ink else ".")
         rows.append("".join(row))
     return rows
@@ -88,7 +91,8 @@ def main():
             # A strike through the full icon means no signal, not strong signal.
             for y in range(COMPACT_HEIGHT):
                 row = list(rows[y])
-                row[COMPACT_WIDTH - 2 - y] = "#"
+                slash_x = COMPACT_WIDTH - 2 - y
+                row[slash_x] = row[slash_x + 1] = "#"
                 rows[y] = "".join(row)
         compact_icons.append(pack(rows, COMPACT_WIDTH, COMPACT_HEIGHT))
         icons.append(pack(large_icon(level), WIDTH, HEIGHT))

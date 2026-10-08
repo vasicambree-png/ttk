@@ -628,8 +628,8 @@ static void ui_main_meta_draw(uint16_t x, uint16_t baseline, const char *text, u
 
 static void ui_main_draw_wireless(uint8_t signal, uint16_t voltage_x, uint16_t voltage_width)
 {
-    /* This is a display-level convention for the controller's LoRa field. */
-    uint8_t icon = signal <= 3u ? signal : 4u;
+    /* Inactive or unsupported display levels keep the icon with a slash. */
+    uint8_t icon = signal <= 3u ? signal : 0u;
     if (voltage_width <= HOME_WIRELESS_FULL_MAX_W)
         u8g2_DrawXBMP(&u8g2, (uint16_t)(voltage_x - UI_WIRELESS_WIDTH - HOME_WIRELESS_GAP),
                       HOME_WIRELESS_TOP, UI_WIRELESS_WIDTH, UI_WIRELESS_HEIGHT,
