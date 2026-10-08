@@ -44,6 +44,9 @@ static inline void screen_power_note_page(screen_power_t *s, uint32_t now,
 static inline uint8_t screen_power_is_off(screen_power_t *s, uint32_t now)
 {
     if (!s->seen) return 1u;
+    /* Keep third-level selection visible until a normal page exits rank 3.
+     * note_page() restarts the configured timeout on that rank change. */
+    if (s->rank == 3u) return 0u;
     if (s->timeout_sec == 0u) return 0u; /* Existing setting: 0 = always on. */
     if ((uint32_t)(now - s->last_activity) >=
         (uint32_t)s->timeout_sec * SCREEN_TICKS_PER_SEC)

@@ -166,6 +166,38 @@ static void expired_stays_off_after_full_clock_cycle(void)
     CHECK(!screen_power_is_off(&s, wrapped_now + 2u * SCREEN_TICKS_PER_SEC));
 }
 
+static void third_level_stays_on_and_exit_restarts_timer(void)
+{
+    uint8_t menu, exit_rank;
+    for (menu = 0u; menu < 8u; ++menu)
+    {
+        screen_power_t s = visible(0u, 1u);
+        uint32_t entered = 2u * SCREEN_TICKS_PER_SEC;
+        CHECK(screen_power_is_off(&s, entered));
+        screen_power_note_page(&s, entered, 3u, menu, 1u, 1u, 0u, 1u);
+        CHECK(!screen_power_is_off(&s, entered));
+        CHECK(!screen_power_is_off(&s, entered + SCREEN_TICKS_PER_SEC));
+        CHECK(!screen_power_is_off(&s, UINT32_MAX));
+        CHECK(!screen_power_is_off(&s, 0u));
+        CHECK(s.expired == 0u);
+        screen_power_note_page(&s, 100u, 3u, menu, 1u, 1u, 0u, 1u);
+        CHECK(s.last_activity == entered);
+        CHECK(!screen_power_is_off(&s, 100u + SCREEN_TICKS_PER_SEC));
+    }
+    for (exit_rank = 1u; exit_rank <= 4u; ++exit_rank)
+    {
+        screen_power_t s = visible(0u, 5u);
+        uint32_t exited = 3600u * SCREEN_TICKS_PER_SEC;
+        if (exit_rank == 3u) continue;
+        screen_power_note_page(&s, 100u, 3u, 5u, 1u, 1u, 0u, 5u);
+        CHECK(!screen_power_is_off(&s, exited));
+        screen_power_note_page(&s, exited, exit_rank, 5u, 1u, 1u, 0u, 5u);
+        CHECK(s.last_activity == exited && s.expired == 0u);
+        CHECK(!screen_power_is_off(&s, exited + 5u * SCREEN_TICKS_PER_SEC - 1u));
+        CHECK(screen_power_is_off(&s, exited + 5u * SCREEN_TICKS_PER_SEC));
+    }
+}
+
 int main(void)
 {
     startup_and_first_frame();
@@ -177,6 +209,7 @@ int main(void)
     explicit_wake_on_unchanged_page();
     wrapping_clock();
     expired_stays_off_after_full_clock_cycle();
+    third_level_stays_on_and_exit_restarts_timer();
     printf("Screen power policy: %u checks, %u failures\n", checks, failures);
     return failures ? 1 : 0;
 }

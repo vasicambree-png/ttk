@@ -58,14 +58,14 @@ int main(void)
     data_LIST saved;
 
     reset();
-    len = make_page(frame, 3, 5, 1, settings, 5);
+    len = make_page(frame, 2, 5, 1, settings, 5);
     enqueue(frame, len); app_uart_process(); pump(5);
     CHECK(Data_list1.Menu_rank6.time_light == 10);
     CHECK(on_calls == 1 && Rx_sleep_flag == 0 && draws == 1);
 
     mock_clock = 15999;
     settings[0] = 3; /* live setting value unrelated to timeout/navigation */
-    len = make_page(frame, 3, 5, 1, settings, 5);
+    len = make_page(frame, 2, 5, 1, settings, 5);
     enqueue(frame, len); app_uart_process(); pump(5);
     CHECK(off_calls == 0 && Rx_sleep_flag == 0);
     mock_clock = 16000; pump(5);
@@ -73,7 +73,7 @@ int main(void)
     old_draws = draws; old_drains = drains;
     for (i = 0; i < 3; i++) {
         settings[0] = (uint16_t)(4 + i);
-        len = make_page(frame, 3, 5, 1, settings, 5);
+        len = make_page(frame, 2, 5, 1, settings, 5);
         enqueue(frame, len); app_uart_process(); pump(20);
     }
     CHECK(Data_list1.Menu_rank6.power == 6);
@@ -139,14 +139,14 @@ int main(void)
     puts("PASS: expired display stays off after clock wraps with ordinary refresh");
 
     mock_clock = 50000; settings[1] = 0;
-    len = make_page(frame, 3, 5, 1, settings, 5);
+    len = make_page(frame, 2, 5, 1, settings, 5);
     enqueue(frame, len); app_uart_process(); pump(5);
     mock_clock = 1000000; pump(5);
     CHECK(Rx_sleep_flag == 0);
     puts("PASS: time_light=0 keeps display on");
 
     reset(); settings[1] = 10;
-    len = make_page(frame, 3, 5, 1, settings, 5);
+    len = make_page(frame, 2, 5, 1, settings, 5);
     enqueue(frame, len); app_uart_process(); pump(5);
     mock_clock = 16000; pump(5);
     saved = Data_list1;
@@ -248,6 +248,46 @@ int main(void)
         CHECK(last_drawn.menu_rank == 2 && last_drawn.rank2_addr == 7 && draws == 4);
     }
     puts("PASS: return-home menu 7 accepts metadata, rejects incomplete/unknown frames and reenters after home");
+
+    reset(); settings[1] = 10;
+    len = make_page(frame, 2, 5, 1, settings, 5);
+    enqueue(frame, len); app_uart_process(); pump(5);
+    mock_clock = 16000; pump(5);
+    CHECK(Rx_sleep_flag == 1 && off_calls == 1);
+    len = make_page(bad, 3, 5, 1, settings, 4);
+    CHECK(parse_received_frame(bad, len, &Data_list1) != 0);
+    pump(5);
+    CHECK(Rx_sleep_flag == 1 && screen_power.rank == 2);
+    mock_clock = 17000;
+    len = make_page(frame, 3, 5, 1, settings, 5);
+    enqueue(frame, len); app_uart_process(); pump(5);
+    CHECK(Rx_sleep_flag == 0 && on_calls == 2 && screen_power.rank == 3);
+    mock_clock = 33000; pump(5);
+    CHECK(Rx_sleep_flag == 0 && off_calls == 1);
+    mock_clock = 1000000;
+    enqueue(frame, len); app_uart_process(); pump(5);
+    CHECK(Rx_sleep_flag == 0 && off_calls == 1 && on_calls == 2);
+    CHECK(screen_power.last_activity == 17000 && screen_power.expired == 0);
+    g_frame_last_sec = UI_HOLD_SEC + 1; old_draws = draws;
+    mock_clock = 2000000; pump(5);
+    CHECK(Rx_sleep_flag == 0 && off_calls == 1 && draws == old_draws);
+    { uint16_t message[] = { UI_MSG_PARAM_SAVE_OK };
+      len = make_page(frame, 6, 5, 1, message, 1);
+      enqueue(frame, len); app_uart_process(); pump(5);
+      CHECK(Rx_sleep_flag == 0 && screen_power.rank == 3); }
+    len = make_page(frame, 5, 0, 0, NULL, 0);
+    enqueue(frame, len); app_uart_process();
+    mock_clock += 16000;
+    usart_ProcessEvent(0, START_TIMER_EVT); pump(5);
+    CHECK(init_calls == 1 && Rx_sleep_flag == 0 && screen_power.rank == 3);
+    len = make_page(frame, 2, 5, 1, settings, 5);
+    enqueue(frame, len); app_uart_process(); pump(5);
+    CHECK(screen_power.last_activity == mock_clock && screen_power.rank == 2);
+    mock_clock += 15999; pump(5);
+    CHECK(Rx_sleep_flag == 0 && off_calls == 1);
+    mock_clock += 1; pump(5);
+    CHECK(Rx_sleep_flag == 1 && off_calls == 2 && on_calls == 2);
+    puts("PASS: valid rank3 stays on through timeout/stale frames/messages/reinit; exit restarts timeout");
     printf("%u checks, %u failures\n", checks, failures);
     return failures ? 1 : 0;
 }
