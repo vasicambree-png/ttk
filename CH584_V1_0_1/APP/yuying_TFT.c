@@ -528,7 +528,7 @@ void UI_Control(data_LIST *list)
 #define HOME_STATUS_BASELINE      44u
 #define HOME_STATUS_LEFT          102u
 #define HOME_STATUS_HOST_RIGHT    372u
-#define HOME_STATUS_MIN_GAP       3u
+#define HOME_STATUS_MIN_GAP       4u
 
 /* 切角横纵跨度相等，保持 45 度直线，供主页各类边框共用。 */
 static void ui_main_cut_frame(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
@@ -689,9 +689,9 @@ void UI_Main_Display(data_LIST *pData)
 
         {
             char station_str[20];
-            const char *state = (pData->UI_main.state == 1) ? "状态：开机" : "状态：关机";
-            sprintf(buf, "本机号：%d-->%s", pData->UI_main.host_num, send_str);
-            sprintf(station_str, "分站：%d", pData->UI_main.sub_num);
+            const char *state = (pData->UI_main.state == 1) ? "状态:开机" : "状态:关机";
+            sprintf(buf, "本机号:%d-->%s", pData->UI_main.host_num, send_str);
+            sprintf(station_str, "分站:%d", pData->UI_main.sub_num);
             /* Shorten labels for long addresses, keeping both pages at 14px. */
             if (ui_text_width(state, 14u) + ui_text_width(station_str, 14u) +
                 ui_text_width(buf, 14u) + 2u * HOME_STATUS_MIN_GAP >

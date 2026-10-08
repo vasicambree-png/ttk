@@ -57,8 +57,11 @@ def check(output, home_only=False):
                         case + ": state and address header matches page-two 14px statistics")
                 first_gap = station[0] - state[0] - width(state)
                 second_gap = machine[0] - station[0] - width(station)
-                require(min(first_gap, second_gap) >= 3 and abs(first_gap - second_gap) <= 1,
+                require(min(first_gap, second_gap) >= 4 and abs(first_gap - second_gap) <= 1,
                         case + ": free space is shared equally between header groups")
+                if case == "home_state_off_station":
+                    require(min(first_gap, second_gap) >= 18,
+                            case + ": narrow colons leave wider gaps between all three groups")
                 require(state[0] >= 98 and state[0] + width(state) < station[0] and
                         station[0] + width(station) < machine[0] and machine[0] + width(machine) <= 372,
                         case + ": longest address/state/station fit without overlap")
@@ -97,7 +100,7 @@ def check(output, home_only=False):
                     require(a[5] < b[3] or b[5] < a[3] or a[6] < b[4] or b[6] < a[4],
                             case + ": separate ink " + a[7] + " / " + b[7])
     for case, labels in (
-        ("home_state_off_station", ("状态：关机", "分站：64", "本机号：118-->分站")),
+        ("home_state_off_station", ("状态:关机", "分站:64", "本机号:118-->分站")),
         ("home_uint16_max", ("状态:开机", "分站65535", "本机65535>65535")),
     ):
         require(all(count(case, label) == 1 for label in labels),
