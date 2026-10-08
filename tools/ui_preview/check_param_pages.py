@@ -180,7 +180,7 @@ def check(output):
                         int(case["menu"]) == 2 and int(case["subpage"]) in (1, 2)
             if not full_data:
                 titles = ("地址分区", "组网测试", "设备绑定", "安装调试", "上传设置", "其他设置", "信息汇总", "返回主页")
-                require((141, 20, 18, titles[int(case["menu"])]) in records[case["case"]],
+                require((156, 31, 18, titles[int(case["menu"])]) in records[case["case"]],
                         case["case"] + ": full-size third-level detail title restored")
     for menu in range(8):
         if menu == 2:
@@ -206,7 +206,12 @@ def check(output):
             require(len(version_inks) == 1 and 118 <= version_inks[0][3] <= version_inks[0][5] <= 372 and
                     134 <= version_inks[0][4] <= version_inks[0][6] <= 159,
                     name + ": version ink inside footer band")
-            slogans = [row for row in inks[name] if row[7] == "精确 · 稳定 · 可靠"]
+            slogans = [row for row in inks[name] if row[7] == "精确 稳定 可靠"]
+            slogan_rows = [row for row in rows if row[3] == "精确 稳定 可靠"]
+            require(len(slogan_rows) == 1 and slogan_rows[0][:3] ==
+                    (min(113 + (266 - width("精确 稳定 可靠", 18)) // 2,
+                         versions[0][0] - 8 - width("精确 稳定 可靠", 18)), 155, 18),
+                    name + ": enlarged slogan centered with longest-version collision guard")
             require(len(slogans) == 1 and len(version_inks) == 1 and
                     slogans[0][5] + 4 < version_inks[0][3],
                     name + ": slogan and longest version remain separate")

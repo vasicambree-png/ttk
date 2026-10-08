@@ -1622,7 +1622,7 @@ void zero_setting_Control() {
 void return_main_Control(void)
 {
     char version[16];
-    const char *slogan = "精确 · 稳定 · 可靠";
+    const char *slogan = "精确 稳定 可靠";
     uint16_t version_x, slogan_width, slogan_x, max_slogan_x;
     /* Static reference artwork only; the STM32 still owns the return action. */
     u8g2_SetDrawColor(&u8g2, 1u);
