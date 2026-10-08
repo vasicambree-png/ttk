@@ -1,5 +1,17 @@
 # GitHub 同步操作记录
 
+## 2026-10-08 组网测试菜单精简
+
+从远程功能分支 `origin/codex/networking-two-actions-20261008` 快进同步到 `main`。
+屏幕只保留焦点0“开始组网”和焦点1“返回”；旧焦点2/3不映射到可见控件，
+宿主预览覆盖正常焦点及旧焦点。WCH GCC12固件编译成功，无固件警告/错误，
+FLASH 212040 B、RAM 66064 B。菜单预览521个用例及214592项参数布局检查均零失败；
+宿主编译保留36条C4828编码警告。输出在本地
+`tools/ui_preview/network_options_verification/`，没有纳入同步。
+
+物理按键循环和确认执行属于当前仓库未包含的STM32主控工程；本次只验证CH584屏幕，
+按键、烧录和实屏效果尚未验证。
+
 ## 2026-10-07 三级选择期间保持亮屏
 
 本轮现场核对目标为 `origin/main`，远程 `git@github.com:vasicambree-png/ttk.git`；原生 fetch 成功，提交前本地与远程一致。提交范围仅熄屏策略、对应策略/UART 回归和维护说明；既有 `.mrs/`、`home_type_fix_output/` 和忽略目录构建产物不暂存。
