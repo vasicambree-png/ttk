@@ -515,11 +515,12 @@ static void render_menu_cases(void) {
         }
     }
     /* A stale fullscreen flag must not steal another menu, especially menu 7. */
-    for (re = 3; re <= 5; ++re) {
+    for (re = 1; re <= 5; ++re) {
+        if (re == 2) continue;
         snprintf(name, sizeof(name), "route_return_left_stale_%u", re);
         render(name, 2, 7, re, 0, 1);
         for (m = 0; m < 8; ++m) {
-            if ((m == 3 && (re == 3 || re == 4)) || (m == 6 && re == 5)) continue;
+            if ((m == 2 && re == 1) || (m == 3 && (re == 3 || re == 4)) || (m == 6 && re == 5)) continue;
             snprintf(name, sizeof(name), "route_menu_%u_stale_%u", m, re);
             render(name, 3, m, re, 0, 1);
         }
@@ -546,10 +547,25 @@ static void render_menu_cases(void) {
             render(name, 3, 2, re, s, 1);
         }
     }
+    for (n = 10; n <= 11; ++n) {
+        init_data(0);
+        g_binding_count = (uint8_t)n;
+        for (i = 0; i < n; ++i) {
+            snprintf((char *)g_binding_list[i].name, MAX_NAME_LEN, "SW_MG_1_%u", i + 1);
+            for (m = 0; m < 6; ++m) g_binding_list[i].mac[m] = (uint8_t)(i + m);
+        }
+        for (i = 0; i < 2; ++i) {
+            g_name_chk_sec = i * 4;
+            snprintf(name, sizeof(name), "binding_count_%u_cycle_%u", n, i);
+            render(name, 3, 2, 1, 0, 1);
+        }
+    }
+    init_data(0);
+    render("binding_left_stale_1", 2, 2, 1, 0, 1);
     init_data(1);
     longest_names();
     render("menu_binding_full", 3, 2, 0, 0, 1);
-    for (i = 0; i < (MAX_BINDING_NUM + 2) / 3; ++i) {
+    for (i = 0; i < (MAX_BINDING_NUM + 9) / 10; ++i) {
         g_name_chk_sec = i * 4;
         for (s = 0; s < 2; ++s) {
             snprintf(name, sizeof(name), "subpage_binding_full_cycle_%u_button_%u", i, s);
@@ -560,6 +576,14 @@ static void render_menu_cases(void) {
         snprintf(name, sizeof(name), "subpage_scan_longest_button_%u", s);
         render(name, 3, 2, 2, s, 1);
     }
+    init_data(0);
+    for (i = 0; i < sizeof(address_values) / sizeof(address_values[0]); ++i) {
+        Data_list1.UI_main.version = address_values[i];
+        snprintf(name, sizeof(name), "return_version_%u", address_values[i]);
+        render(name, 2, 7, 0, 0, 1);
+    }
+    init_data(1);
+    longest_names();
     for (i = 0; i < sizeof(pages) / sizeof(pages[0]); ++i) {
         snprintf(name, sizeof(name), "menu_names_page_%u", pages[i]);
         render(name, 3, 6, 5, 0, pages[i]);

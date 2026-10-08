@@ -869,6 +869,11 @@ void UI_Menu_Display(void)
     if (Data_list1.menu_rank == 3)
     {
         uint8_t re_top = Data_list1.UI_main.re_flag;
+        if (UI_Select == 2u && re_top == 1u)
+        {
+            binding_Control();
+            goto restore_style;
+        }
         if (UI_Select == 3u && (re_top == 3u || re_top == 4u))
         {
             install_Control();
@@ -915,42 +920,50 @@ restore_style:
  *
  *   ★ CH584M 只画不执行：真正的解绑由 STM32 发 0x04、保存由 0x05 执行。
  *   ★ 设备行显示 **名称 + 12 位十六进制 MAC**（清单要求"MAC 端可见"）。
- *     名称与 MAC 分两行，超出当前区域的设备使用已有秒时基轮显。
+ *     名称与 MAC 分两行，全屏两列共10个设备；超出部分使用已有秒时基轮显。
  * ================================================================== */
 
-/* 已绑定设备列表子页（re_flag==1 与 rank3==0 共用）
- *   with_buttons = 1 → 底部两项"解绑 / 返回"（高亮由 rank3 决定：0=解绑，1=返回）
- *   with_buttons = 0 → 只有"返回"（固定高亮） */
-static void binding_device_list_page(uint8_t rank3, uint8_t with_buttons)
+/* 一键解绑全屏子页：两列各5个设备，保留名称、MAC及主控按钮编号。 */
+static void binding_device_list_page(uint8_t rank3)
 {
     char line[48];
     uint8_t i, n, first, pages;
+    u8g2_SetDrawColor(&u8g2, 1u);
+    u8g2_DrawBox(&u8g2, 1u, 1u, 382u, 166u);
+    u8g2_SetDrawColor(&u8g2, 0u);
+    u8g2_DrawRFrame(&u8g2, 2u, 1u, 380u, 166u, 4u);
+    u8g2_DrawXBMP(&u8g2, 10u, 6u, 13u, 13u, ui_menu_nav_icons[2]);
+    ui_menu_text(29u, 16u, "设备绑定", 14u);
     sprintf(line, "总设备数:%d", g_binding_count);
-    ui_draw(122u, 56u, line);
+    ui_text_draw(108u, 16u, line, 11u);
+    ui_menu_control(208u, 3u, 75u, 18u, "解绑", (uint8_t)(rank3 == 0u), 1u);
+    ui_menu_control(298u, 3u, 75u, 18u, "返回", (uint8_t)(rank3 != 0u), 1u);
+    ui_main_cut_frame(6u, 22u, 183u, 142u, 4u);
+    ui_main_cut_frame(195u, 22u, 183u, 142u, 4u);
+    for (i = 1u; i < 5u; i++)
+    {
+        uint16_t y = (uint16_t)(23u + 28u * i);
+        u8g2_DrawHLine(&u8g2, 6u, y, 183u);
+        u8g2_DrawHLine(&u8g2, 195u, y, 183u);
+    }
     n = g_binding_count;
     if (n > MAX_BINDING_NUM) n = MAX_BINDING_NUM;
-    pages = (uint8_t)((n + 2) / 3);
-    first = pages ? (uint8_t)(((g_name_chk_sec / 4) % pages) * 3) : 0;
-    for (i = first; i < n && i < first + 3; i++)
+    pages = (uint8_t)((n + 9u) / 10u);
+    first = pages ? (uint8_t)(((g_name_chk_sec / 4u) % pages) * 10u) : 0u;
+    for (i = first; i < n && i < first + 10u; i++)
     {
-        uint16_t y = (uint16_t)(71u + 26u * (i - first));
-        sprintf(line, "%02d", i + 1);
-        ui_text_draw(122u, y, line, 11u);
-        ui_draw_name_size(144u, y, g_binding_list[i].name, 224u, 11u);
+        uint8_t slot = (uint8_t)(i - first);
+        uint16_t x = (uint16_t)(slot < 5u ? 13u : 202u);
+        uint16_t y = (uint16_t)(33u + 28u * (slot % 5u));
+        sprintf(line, "%u:", (unsigned int)(i + 1u));
+        ui_text_draw(x, y, line, 11u);
+        ui_draw_name_aligned((uint16_t)(x + 24u), y, g_binding_list[i].name, 144u, 11u, 1u);
         sprintf(line, "%02X%02X%02X%02X%02X%02X",
                 g_binding_list[i].mac[0], g_binding_list[i].mac[1], g_binding_list[i].mac[2],
                 g_binding_list[i].mac[3], g_binding_list[i].mac[4], g_binding_list[i].mac[5]);
-        ui_text_draw(144u, (uint16_t)(y + 13u), line, 11u);
+        ui_text_draw((uint16_t)(x + 24u + (144u - ui_text_width(line, 11u)) / 2u),
+                      (uint16_t)(y + 13u), line, 11u);
     }
-    if (with_buttons)
-    {
-        ui_menu_control(117u, 140u, 128u, 22u, "解绑",
-                         (uint8_t)(Data_list1.menu_rank == 3u && rank3 == 0u), 1u);
-        ui_menu_control(247u, 140u, 128u, 22u, "返回",
-                         (uint8_t)(Data_list1.menu_rank == 3u && rank3 != 0u), 1u);
-    }
-    else ui_menu_control(117u, 140u, 128u, 22u, "返回",
-                          (uint8_t)(Data_list1.menu_rank == 3u), 1u);
 }
 
 /* 绑定设备子页（re_flag==2）：显示最近扫描到的蓝牙名称 + 保存目前设备/返回
@@ -981,7 +994,7 @@ void binding_Control(void)
     uint8_t rank3 = Data_list1.rank3_addr;
     char buf[48];
     if (re == 2) { binding_scan_page(rank3); return; }
-    if (re == 1) { binding_device_list_page(rank3, 1); return; }
+    if (re == 1 && Data_list1.menu_rank == 3u) { binding_device_list_page(rank3); return; }
     sprintf(buf, "已绑定设备:%d", g_binding_count);
     ui_menu_control(117u, 50u, 258u, 25u, buf, ui_menu_selected(0u), 0u);
     ui_menu_control(117u, 79u, 258u, 25u, "一键解绑", ui_menu_selected(1u), 0u);
@@ -1577,6 +1590,7 @@ void zero_setting_Control() {
  *   实际"返回主页"由 STM32 按键（K2 确认）后下发 menu_rank=1 的 0x01 帧完成。 */
 void return_main_Control(void)
 {
+    char version[16];
     /* Static reference artwork only; the STM32 still owns the return action. */
     u8g2_SetDrawColor(&u8g2, 1u);
     u8g2_DrawBox(&u8g2, 113u, 1u, 266u, 166u);
@@ -1590,6 +1604,15 @@ void return_main_Control(void)
         u8g2_SetDrawColor(&u8g2, 0u);
         ui_menu_detail_title(7u);
     }
+    /* Controller version is encoded in tenths (10 = V1.0). */
+    sprintf(version, "V%u.%u", (unsigned int)(Data_list1.UI_main.version / 10u),
+            (unsigned int)(Data_list1.UI_main.version % 10u));
+    /* Reserve the lower-right corner; keep the brand slogan to its left. */
+    u8g2_SetDrawColor(&u8g2, 1u);
+    u8g2_DrawBox(&u8g2, 119u, 140u, 254u, 18u);
+    u8g2_SetDrawColor(&u8g2, 0u);
+    ui_text_draw(139u, 153u, "精确 · 稳定 · 可靠", 11u);
+    ui_text_draw((uint16_t)(368u - ui_text_width(version, 11u)), 153u, version, 11u);
 }
 
 

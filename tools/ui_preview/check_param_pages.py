@@ -154,11 +154,81 @@ def check(output):
     for case in cases:
         if int(case["rank"]) == 3 and not case["case"].startswith("message_"):
             full_data = int(case["menu"]) == 3 and int(case["subpage"]) in (3, 4) or \
-                        int(case["menu"]) == 6 and int(case["subpage"]) == 5
+                        int(case["menu"]) == 6 and int(case["subpage"]) == 5 or \
+                        int(case["menu"]) == 2 and int(case["subpage"]) == 1
             if not full_data:
                 titles = ("地址分区", "组网测试", "设备绑定", "安装调试", "上传设置", "其他设置", "信息汇总", "返回主页")
                 require((141, 20, 14, titles[int(case["menu"])]) in records[case["case"]],
                         case["case"] + ": compact third-level detail title restored")
+    for menu in range(8):
+        if menu == 2:
+            continue
+        require((output / "after" / f"route_menu_{menu}_stale_1.pgm").read_bytes() ==
+                (output / "after" / f"menu_all_{menu}_focus_0.pgm").read_bytes(),
+                f"menu {menu}: unbind flag cannot steal another menu")
+    require((output / "after/route_return_left_stale_1.pgm").read_bytes() ==
+            (output / "after/menu_7.pgm").read_bytes(),
+            "return menu: left selection ignores unbind flag")
+    require((output / "after/binding_left_stale_1.pgm").read_bytes() ==
+            (output / "after/menu_2.pgm").read_bytes(),
+            "binding menu: second-level selection ignores stale unbind flag")
+    for case in cases:
+        name = case["case"]
+        rows = records[name]
+        if int(case["menu"]) == 7 and int(case["rank"]) in (2, 3):
+            versions = [row for row in rows if re.fullmatch(r"V\d+\.\d", row[3])]
+            require(len(versions) == 1 and versions[0][1:3] == (153, 11) and
+                    versions[0][0] + width(versions[0][3]) == 368,
+                    name + ": controller version at lower-right corner")
+            version_inks = [row for row in inks[name] if re.fullmatch(r"V\d+\.\d", row[7])]
+            require(len(version_inks) == 1 and 118 <= version_inks[0][3] <= version_inks[0][5] <= 372 and
+                    140 <= version_inks[0][4] <= version_inks[0][6] <= 157,
+                    name + ": version ink inside footer band")
+            slogans = [row for row in inks[name] if row[7] == "精确 · 稳定 · 可靠"]
+            require(len(slogans) == 1 and len(version_inks) == 1 and
+                    slogans[0][5] + 4 < version_inks[0][3],
+                    name + ": slogan and longest version remain separate")
+            if name.startswith("return_version_"):
+                raw = int(name.removeprefix("return_version_"))
+                require(versions and versions[0][3] == f"V{raw // 10}.{raw % 10}",
+                        name + ": version follows controller tenths format")
+        if int(case["rank"]) != 3 or int(case["menu"]) != 2 or int(case["subpage"]) != 1:
+            continue
+        require((29, 16, 14, "设备绑定") in rows and
+                sum(row[3] == "解绑" for row in rows) == 1 and
+                sum(row[3] == "返回" for row in rows) == 1 and
+                not any(row[3] == "地址分区" for row in rows),
+                name + ": fullscreen binding page replaces sidebar and retains actions")
+        data = [row for row in rows if row[1] >= 22]
+        labels = [row for row in data if re.fullmatch(r"[1-9]\d*:", row[3])]
+        require(len(data) == len(labels) * 3 and len(labels) <= 10,
+                name + ": device rows retain number, name and full MAC")
+        numbers = [int(row[3][:-1]) for row in labels]
+        require(not numbers or numbers == list(range(numbers[0], numbers[0] + len(numbers))),
+                name + ": device sequence has no leading zero or skipped entries")
+        for i, row in enumerate(labels):
+            left = 13 if i < 5 else 202
+            baseline = 33 + 28 * (i % 5)
+            require(row[:3] == (left, baseline, 11) and
+                    sum(r[1] == baseline + 13 and left + 24 <= r[0] < left + 168 and
+                        re.fullmatch(r"[0-9A-F]{12}", r[3]) is not None for r in data) == 1,
+                    name + ": name/MAC row belongs to device " + row[3])
+        data_ink = [row for row in inks[name] if row[1] >= 22 and row[3] >= 0]
+        for row in data_ink:
+            left, right = (7, 187) if row[0] < 190 else (196, 376)
+            top = 23 + 28 * ((row[1] - 33) // 28)
+            require(left <= row[3] <= row[5] <= right and top <= row[4] <= row[6] <= top + 26,
+                    name + ": device ink inside its cell " + row[7])
+        if name.startswith("subpage_binding_full_cycle_"):
+            cycle = int(name.split("_cycle_")[1].split("_")[0])
+            first = cycle * 10 + 1
+            require(numbers == list(range(first, min(first + 10, 33))),
+                    name + ": full binding table cycles through all 32 devices")
+        if name.startswith("binding_count_"):
+            count, cycle = map(int, re.fullmatch(r"binding_count_(\d+)_cycle_(\d+)", name).groups())
+            first = 1 if count == 10 or cycle == 0 else 11
+            require(numbers == list(range(first, min(first + 10, count + 1))),
+                    name + ": exact-page and partial-page boundaries")
     result = {"checks": len(checks), "failures": failures}
     (output / "param_page_contract.json").write_text(
         json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
