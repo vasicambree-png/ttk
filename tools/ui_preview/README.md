@@ -8,20 +8,20 @@ python tools/ui_preview/run_preview.py
 
 当前主页两页统一88×44 Logo、18px数据文字和22px行距，顶栏14px。
 2026-10-08：每翼两条斜线；第一页无线图标位于电压左侧，两者同行，下方为分站号和右对齐本机号；
-电压增至16px、无线图标增至17×13；第二页右上角为状态:开机/关机，
+电压通常16px，超长字符串回退14px；无线图标增至21×17，与电压间隔6px；第二页右上角为状态:开机/关机，
 下方为已绑定数字、独立间隔4px的“台”和已用通道。两页信息栏左锚108、右锚366，各向中间内收6px；第二页
 不显示电压、无线图标、报警。冒号仍为4px窄字模，最长数字完整显示。
 主页范围检查真实文字墨迹、单元格边界及内部碰撞，两页等待/真实零值/部分接收独立检查。
 无线图标是Wi-Fi外形，读取主控`UI_main.Lora_rssi`；本次显示约定0无、1弱、2中、3强，
 其他值显示问号。仓库无独立Wi-Fi联网字段，主控是否按此约定下发尚未验证。
 资源由`tools/generate_wireless_assets.py`生成；“台”由已有菜单字模生成器补齐四种字号。
-后续按参考图将无线图标改为三层圆弧与独立圆点，仍为17×13；弱/中/强档分别保留
+此前参考图轮次将无线图标改为三层圆弧与独立圆点，当时为17×13；弱/中/强档分别保留
 一/二/三道弧线，无信号保留斜线、未知值保留问号。该次预览在
 `output/home_wifi_arc_20261008/`，`after/home_wifi_3_3x.png`为强信号图标示例。
-本轮独立预览在`output/home_header_large_20261008/`，复验命令：
+本轮独立预览在`output/home_wifi_larger_gap_20261008/`，复验命令：
 
 ```powershell
-python -B tools/ui_preview/run_preview.py --scope home --output output/home_header_large_20261008 --phase after
+python -B tools/ui_preview/run_preview.py --scope home --output output/home_wifi_larger_gap_20261008 --phase after
 ```
 
 工具使用完整 `CH584_V1_0_1/APP/yuying_TFT.c` 和实际工程头文件，直接编译工程的字体解码、UTF-8 解码、位图、矩形、圆角和线条绘制算法。只将显示端点接到本地 384×168 单色像素数组，并把 GPIO/SPI/延时端点设为空操作。源码仅在生成的宿主副本中将 MSVC 不接受的未使用空数组调整为一个零字节。

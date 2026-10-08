@@ -527,10 +527,11 @@ void UI_Control(data_LIST *list)
 #define HOME_HEADER_BATTERY_RIGHT 376u
 #define HOME_HEADER_BATTERY_BASE  29u
 #define HOME_HEADER_BATTERY_SIZE  16u
+#define HOME_HEADER_BATTERY_MAX_W 58u
 #define HOME_HEADER_STATE_RIGHT   372u
 #define HOME_HEADER_STATE_BASE    23u
-#define HOME_WIRELESS_TOP         18u
-#define HOME_WIRELESS_GAP         2u
+#define HOME_WIRELESS_TOP         14u
+#define HOME_WIRELESS_GAP         6u
 #define HOME_STATUS_BASELINE      44u
 #define HOME_STATUS_LEFT          108u
 #define HOME_STATUS_HOST_RIGHT    366u
@@ -684,12 +685,19 @@ void UI_Main_Display(data_LIST *pData)
     /* Page one owns the voltage and controller wireless indicator. */
     if (page == 1u)
     {
+        uint8_t voltage_size = HOME_HEADER_BATTERY_SIZE;
         sprintf(buf, "%d.%d%dV",
                 pData->UI_main.vbat / 100, pData->UI_main.vbat % 100 / 10,
                 pData->UI_main.vbat % 100 % 10);
         w = ui_text_width(buf, HOME_HEADER_BATTERY_SIZE);
+        /* Reserve the enlarged icon and its gap even for uint16_t extremes. */
+        if (w > HOME_HEADER_BATTERY_MAX_W)
+        {
+            voltage_size = 14u;
+            w = ui_text_width(buf, voltage_size);
+        }
         ui_main_meta_draw((uint16_t)(HOME_HEADER_BATTERY_RIGHT - w),
-                          HOME_HEADER_BATTERY_BASE, buf, HOME_HEADER_BATTERY_SIZE);
+                          HOME_HEADER_BATTERY_BASE, buf, voltage_size);
         ui_main_draw_wireless(pData->UI_main.Lora_rssi,
                               (uint16_t)(HOME_HEADER_BATTERY_RIGHT - w));
         if (pData->UI_main.send_host_num == 122u)      sprintf(send_str, "分站");

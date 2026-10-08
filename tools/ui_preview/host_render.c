@@ -146,7 +146,7 @@ void u8g2_DrawXBM(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, u8g2_uint_t w, u8g2_u
 void u8g2_DrawXBMP(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, u8g2_uint_t w, u8g2_uint_t h, const uint8_t *b) {
     check_box("XBMP", x, y, w, h);
     if (home_page_expect && !strcmp(draw_pass, "primary") &&
-        ((w == 13u && h == 11u) || (w == 17u && h == 13u))) {
+        ((w == 13u && h == 11u) || (w == 17u && h == 13u) || (w == 21u && h == 17u))) {
         ++home_wifi_count;
         home_wifi_x = x;
         home_wifi_y = y;
@@ -744,6 +744,12 @@ int main(int argc, char **argv) {
         init_data(0);
         Data_list1.UI_main.Lora_rssi = signals[m];
         snprintf(name, sizeof(name), "home_wifi_%u", signals[m]);
+        render_home(name, 1);
+    }
+    for (m = 0; m < 2; ++m) {
+        init_data(0);
+        Data_list1.UI_main.vbat = (uint16_t)(m ? 10000u : 9999u);
+        snprintf(name, sizeof(name), "home_voltage_%u", Data_list1.UI_main.vbat);
         render_home(name, 1);
     }
     for (m = 0; m < 2; ++m) {

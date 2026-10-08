@@ -57,16 +57,17 @@ def check(output, home_only=False):
             states = [row for row in rows if row[3].startswith("状态")]
             is_page2 = pages[case] == 2
             voltage = [row for row in rows if re.fullmatch(r"\d+\.\d{2}V", row[3])]
-            wifi = [bitmap for bitmap in bitmaps[case] if bitmap[2:] == (17, 13)]
+            wifi = [bitmap for bitmap in bitmaps[case] if bitmap[2:] == (21, 17)]
             require(not any(row[3].startswith("报警:") for row in rows), case + ": alarm removed from home metadata")
             if not is_page2:
                 require(not states and len(voltage) == 1 and len(wifi) == 1,
                         case + ": page one shows voltage and wireless bitmap without status")
                 for value in voltage:
-                    require(value[1:3] == (29, 16) and value[0] + width(value) == 376,
+                    size = 16 if sum(tables[16][ord(char)] for char in value[3]) <= 58 else 14
+                    require(value[1:3] == (29, size) and value[0] + width(value) == 376,
                             case + ": page-one voltage at the top-right baseline")
-                    require(len(wifi) == 1 and wifi[0] == (value[0] - 19, 18, 17, 13),
-                            case + ": enlarged wireless icon sits two pixels left of the enlarged voltage")
+                    require(len(wifi) == 1 and wifi[0] == (value[0] - 27, 14, 21, 17) and wifi[0][0] >= 290,
+                            case + ": larger wireless icon sits six pixels left of the voltage and clears the title wing")
                 machine = next(row for row in rows if row[3].startswith("本机"))
                 station = next(row for row in rows if row[3].startswith("分站"))
                 require(machine[1:3] == (44, 14) and machine[0] + width(machine) == 366 and
