@@ -95,7 +95,7 @@ const uint8_t MAIN_LEN = sizeof(Main_List) / sizeof(MENU_LIST);  //�����
  *
  * 普通文字统一为微软雅黑粗体，使用 ui_menu_assets.h 的 11/14/16/18 字模；
  * 首页静态标题同为微软雅黑粗体 20px。Logo 保留原图字形。
- * UI_FONT_CN 仅保留现有 u8g2 上下文配置，实际页面文本由 ui_text_draw 绘制。
+ * 实际页面文本由 ui_text_draw 绘制，不设置 u8g2 字库，避免链接未使用的全中文字库。
  * 20通道三级页每页10条、18px正文和22px行距；轮显列表用11px和13px行距。
  * ================================================================== */
 
@@ -104,10 +104,8 @@ const uint8_t MAIN_LEN = sizeof(Main_List) / sizeof(MENU_LIST);  //�����
  *   单位：★ 2026-09-22 按厂商广播格式规格（契约_传感器数据解析与显示标度 §4.2）确定：
  *         锚杆(MG)=kN、激光(JG)=mm、位移(WY2/4/6/8)=mm、裂缝(LF)=mm、
  *         倾角(QJ)=°、应力(YL)=MPa；液位/微震/地音/测试 仍未定义量纲，留空不猜。
- *   另：★ 更正第 5 轮的一条错误结论 —— 当时说"新字库缺 '°' 字形"是针对**旧字库**
- *       u8g2_font24_lunar 的结论。当前 UI_FONT_CN = u8g2_font_wqy14_t_gb2312a
- *       经 _tools/font_probe.js 核验**含 U+00B0(°)**（负例对照：€/emoji/U+FFFD 均为缺），
- *       故倾角可以正常显示 "°"。 */
+ *   倾角的 ° 与中文名称均使用 ui_menu_assets.h 中的现有位图字模。
+ */
 static const char *const CH_TYPE_NAME[TPYE_END] = {
     "--", "锚杆", "激光", "位移", "位移", "位移", "位移",
     "裂缝", "倾角", "应力", "液位", "微震", "地音", "测试"
@@ -346,9 +344,8 @@ uint8_t rank=0;
  *   · g_ui_msg 非 0 时，UI_Control() **优先画提示页**，普通页面帧盖不掉它
  *     （但 Data_list1 照常更新 ⇒ 提示消失后自动画回最新页面）；
  *   · 显示时长由 1 秒事件倒数（ui_msg_tick_sec()），到点自动清除并请求重画；
- *   · 提示文本全部用 UI_FONT_CN（u8g2_font_wqy14_t_gb2312a）。
- *     ★ 注意：旧的 u8g2_font24_lunar **缺** 解/绑/全/部/参 等字，
- *       中文提示一律用 UI_FONT_CN，否则会画成空白。
+ *   · 提示文本由 ui_draw 使用 ui_menu_assets.h 的 14px 位图字模绘制；
+ *     与普通页面共用现有字模，不依赖 UI_FONT_CN 的历史全中文字库。
  * ================================================================== */
 volatile uint8_t g_ui_msg      = UI_MSG_NONE;
 static   uint8_t s_ui_msg_hold = 0u;
@@ -415,7 +412,6 @@ static void UI_Message_Display(void)
         default:                     line = "保存";         break;
     }
 
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
     u8g2_SetFontMode(&u8g2, 1);
     u8g2_SetDrawColor(&u8g2, 1);
 
@@ -650,10 +646,8 @@ static void ui_main_channel_badge(uint16_t x, uint16_t baseline, uint8_t channel
 
     ui_main_cut_frame(x, top, 22u, 18u, 2u);
     sprintf(label, "%u", (unsigned int)channel);
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
     label_width = ui_text_width(label, 14u);
     ui_text_draw((uint16_t)(x + (22u - label_width) / 2u), baseline, label, 14u);
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
 }
 
 void UI_Main_Display(data_LIST *pData)
@@ -666,7 +660,6 @@ void UI_Main_Display(data_LIST *pData)
 
     u8g2_SetDrawColor(&u8g2, 1);
     u8g2_SetFontMode(&u8g2, 1);
-    u8g2_SetFont(&u8g2, UI_FONT_CN);          /* 中文全字库，见文件顶部说明 */
 
     /* 两页只替换顶部信息和通道集合，Logo、网格及字号共用。 */
     page = (pData->UI_main.chu_num1 == 2u) ? 2u : 1u;
@@ -685,10 +678,8 @@ void UI_Main_Display(data_LIST *pData)
     sprintf(buf, "%d.%d%dV",
             pData->UI_main.vbat / 100, pData->UI_main.vbat % 100 / 10,
             pData->UI_main.vbat % 100 % 10);
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
     w = (uint16_t)ui_text_width(buf, 14u);
     ui_draw((uint16_t)(HOME_HEADER_BATTERY_RIGHT - w), HOME_HEADER_BATTERY_BASE, buf);
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
 
     /* ---------- 第 1 页专属：状态、本机号和分站号：只重排显示，不改字段来源 ---------- */
     if (page == 1u)
@@ -799,14 +790,12 @@ static void ui_menu_control(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
     }
     else
     {
-        /* Long counters use the existing complete Chinese font, not clipping. */
-        u8g2_SetFont(&u8g2, UI_FONT_CN);
+        /* Long counters use the existing 14px bitmap glyphs. */
         tw = (uint16_t)ui_text_width(text, 14u);
         tx = centered && tw <= w - 8u ? (uint16_t)(x + (w - tw) / 2u) : (uint16_t)(x + 5u);
         ui_draw(tx, (uint16_t)(y + (h - 14u) / 2u + 12u), text);
     }
     u8g2_SetDrawColor(&u8g2, 0);
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
 }
 
 static void ui_menu_button(uint8_t right, const char *text, uint8_t selected)
@@ -847,7 +836,6 @@ static void ui_menu_header(uint8_t menu, uint8_t fullscreen, const char *subtitl
     {
         ui_menu_text(200u, 28u, subtitle, 16u);
     }
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
 }
 
 void UI_Menu_Display(void)
@@ -900,7 +888,6 @@ restore_style:
     u8g2_SetBitmapMode(&u8g2, bitmap_mode);
     u8g2_SetFontMode(&u8g2, font_mode);
     u8g2_SetDrawColor(&u8g2, draw_color);
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
 }
 
 /* ==================================================================
@@ -924,13 +911,11 @@ static void binding_device_list_page(uint8_t rank3, uint8_t with_buttons)
     char line[48];
     uint8_t i, n, first, pages;
     sprintf(line, "总设备数:%d", g_binding_count);
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
     ui_draw(122u, 56u, line);
     n = g_binding_count;
     if (n > MAX_BINDING_NUM) n = MAX_BINDING_NUM;
     pages = (uint8_t)((n + 2) / 3);
     first = pages ? (uint8_t)(((g_name_chk_sec / 4) % pages) * 3) : 0;
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
     for (i = first; i < n && i < first + 3; i++)
     {
         uint16_t y = (uint16_t)(71u + 26u * (i - first));
@@ -959,7 +944,6 @@ static void binding_scan_page(uint8_t rank3)
 {
     uint8_t i, n;
     const char *nm;
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
     ui_draw(122u, 56u, "扫描到的蓝牙名称");
     n = scan_name_cache_count();
     if (n == 0u) ui_draw(122u, 71u, "--");
@@ -1054,7 +1038,6 @@ static void summary_name_page(void)
                               (uint16_t)(HOME_DATA_RIGHT - PARAM_NAME_OFFSET), PARAM_TEXT_SIZE);
         else ui_text_draw(name_x, y, "--", PARAM_TEXT_SIZE);
     }
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
 }
 
 /* 恢复出厂确认子页（re_flag==6）：两项，高亮由 rank3 决定（0=确认，其余=返回） */
@@ -1128,7 +1111,6 @@ void addr_Control1(void)
     #define OPTION_COUNT (sizeof(configs)/sizeof(configs[0]))
 
     OptionItem laber[OPTION_COUNT];
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
 
     // 循环绘制并计算宽度
     for (int i = 0; i < OPTION_COUNT; i++)
@@ -1255,7 +1237,6 @@ void calibration_Control()
   //           {120, 156, 24,0,4,4},
   //           {250, 156, 24,0,4,4}
        };
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
 
      ui_draw(120, 60, "标定点:");          // 框y=72,高26,垂直居中约90
      ui_draw(120, 90,  "0   mm");
@@ -1337,7 +1318,6 @@ void password_Control()
 //           {120, 156, 24,0,4,4},
 //           {250, 156, 24,0,4,4}
      };
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
 
      ui_draw(160, 80, "请输入标定密码");          // 框y=72,高26,垂直居中约90
 
@@ -1390,7 +1370,6 @@ void password_Control()
 }
 void new_return(void)
 {
-    u8g2_SetFont(&u8g2, UI_FONT_CN);
 
     ui_draw(80, 80, "正在重启保存数据");
 }
@@ -1483,7 +1462,6 @@ void zero_setting_Control() {
 //           {120, 156, 24,0,4,4},
 //           {250, 156, 24,0,4,4}
      };
-       u8g2_SetFont(&u8g2, UI_FONT_CN);
        ui_draw(120, 60, "通道一:");          // 框y=72,高26,垂直居中约90
       // ui_draw(250, 60, "1200 mm");
 
@@ -1525,7 +1503,6 @@ void zero_setting_Control() {
        ui_draw(250, 120, tmp6);
        laber[1].label_wight=ui_text_width((const char*)tmp6, 14u);
 
-       u8g2_SetFont(&u8g2, UI_FONT_CN);
        ui_draw(120, 156, "保存并重启");         // 下框y=104,高26,垂直居中约122
        laber[2].label_wight=ui_text_width((const char*)"保存并重启", 14u);
 

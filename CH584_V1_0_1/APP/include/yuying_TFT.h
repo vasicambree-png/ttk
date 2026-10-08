@@ -24,27 +24,12 @@
 
 #define MENU_HEIGHT     32
 
-/* ==================================================================
- * ★ 统一中文 UI 字体（功能清单适配，2026-09-20 新增）
- *
- * 问题：工程原有的 u8g2_font16/24/32_lunar 三套字库**共用同一套 207 个字形**
- *       （仅 125 个汉字）。功能清单要求的菜单文案里有 33 个字不在其中，例如
- *       绑 解 蓝 牙 名 称 电 压 警 报 异 常 信 息 汇 总 恢 复 出 厂 版 电 池 确 认
- *       键 扫 描 目 前 用 巷 综 合
- *       ——照抄清单文案会在屏上显示为空白（u8g2 跳过无字形字符）。
- *
- * 方案：改用工程 u8g2 自带的「文泉驿 GB2312 半区」全字库
- *       u8g2_font_wqy14_t_gb2312a：3755 个常用汉字，清单用字**缺 0**。
- *       该字体已在 u8g2\include\u8g2.h:3239 声明，定义在 u8g2\u8g2_fonts.c。
- *
- * 体积核算（Flash 上限 448 KB = 458,752 B）：
- *       改动前 text = 232,212 B；本字体声明 131,544 B
- *       → 约 364 KB，余量约 95 KB。
- *       若需更大字号可换 u8g2_font_wqy16_t_gb2312a（163,968 B，余量约 62 KB）。
- *
- * 说明：大字号纯数字/英文仍可使用原 lunar 字库（其 ASCII 部分完好），
- *       中文一律使用 UI_FONT_CN，避免再次出现缺字空白。
- * ================================================================== */
+/* Historical u8g2 font selector retained for source compatibility.
+ * Current UI text is rendered with ui_menu_assets.h bitmap glyphs through
+ * ui_text_draw/ui_text_width. Do not set this unused font in the page path:
+ * doing so retains the 131544-byte legacy font in Flash via a relocation.
+ * The original font data remains in APP/u8g2_font_cn.c for optional reuse.
+ */
 #define UI_FONT_CN      u8g2_font_wqy14_t_gb2312a
 
 #define POS_X1          110  //定义菜单x坐标起始位置
