@@ -1232,7 +1232,8 @@ void addr_Control1(void)
 }
 void networking_Control1(void)
 {
-    /* Same four STM32-controlled actions, in their original index order. */
+    /* Screen-only menu: STM32 must cycle/confirm only 0=start, 1=return.
+     * Never remap obsolete STM32 focus IDs 2/3 to either live action. */
     ui_menu_text(123u, 63u, "组网", 16u);
     u8g2_DrawFrame(&u8g2, 130u, 74u, 25u, 18u);
     u8g2_DrawFrame(&u8g2, 133u, 77u, 19u, 12u);
@@ -1242,10 +1243,8 @@ void networking_Control1(void)
     u8g2_DrawXBMP(&u8g2, 226u, 71u, 29u, 27u, ui_menu_title_icons[1]);
     u8g2_DrawHLine(&u8g2, 258u, 84u, 63u);
     u8g2_DrawFrame(&u8g2, 327u, 73u, 21u, 25u);
-    ui_menu_control(117u, 107u, 128u, 25u, "开始组网", ui_menu_selected(0u), 1u);
-    ui_menu_control(247u, 107u, 128u, 25u, "返回", ui_menu_selected(1u), 1u);
-    ui_menu_button(0u, "重置组网", ui_menu_selected(2u));
-    ui_menu_button(1u, "保存组网", ui_menu_selected(3u));
+    ui_menu_control(117u, 117u, 128u, 25u, "开始组网", ui_menu_selected(0u), 1u);
+    ui_menu_control(247u, 117u, 128u, 25u, "返回", ui_menu_selected(1u), 1u);
 }
 
 void networking_Control2(void)
