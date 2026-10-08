@@ -9,6 +9,8 @@ import re
 def check(output):
     root = Path(__file__).resolve().parents[2]
     header = (root / "CH584_V1_0_1/APP/include/ui_menu_assets.h").read_text(encoding="utf-8")
+    slogan_width = int(re.search(r"#define UI_RETURN_SLOGAN_WIDTH (\d+)u", header).group(1))
+    slogan_size = int(re.search(r"#define UI_RETURN_SLOGAN_SIZE (\d+)u", header).group(1))
     font_widths = {}
     for size in (11, 18):
         glyphs = re.search(rf"ui_menu_glyphs_{size}\[\] = \{{(.*?)\}};", header, re.S).group(1)
@@ -209,8 +211,8 @@ def check(output):
             slogans = [row for row in inks[name] if row[7] == "精确 稳定 可靠"]
             slogan_rows = [row for row in rows if row[3] == "精确 稳定 可靠"]
             require(len(slogan_rows) == 1 and slogan_rows[0][:3] ==
-                    (min(113 + (266 - width("精确 稳定 可靠", 18)) // 2,
-                         versions[0][0] - 8 - width("精确 稳定 可靠", 18)), 155, 18),
+                    (min(113 + (266 - slogan_width) // 2,
+                         versions[0][0] - 8 - slogan_width), 155, slogan_size),
                     name + ": enlarged slogan centered with longest-version collision guard")
             require(len(slogans) == 1 and len(version_inks) == 1 and
                     slogans[0][5] + 4 < version_inks[0][3],

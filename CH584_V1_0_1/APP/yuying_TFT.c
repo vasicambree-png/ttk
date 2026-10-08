@@ -1633,23 +1633,24 @@ void return_main_Control(void)
     /* Controller version is encoded in tenths (10 = V1.0). */
     sprintf(version, "V%u.%u", (unsigned int)(Data_list1.UI_main.version / 10u),
             (unsigned int)(Data_list1.UI_main.version % 10u));
-    /* Center the enlarged 18px slogan in the right pane. Reserve at least
+    /* Center the enlarged LiSu slogan in the right pane. Reserve at least
      * 8px before the unchanged lower-right 18px controller version. */
     version_x = (uint16_t)(368u - ui_text_width(version, 18u));
-    slogan_width = ui_text_width(slogan, 18u);
+    slogan_width = UI_RETURN_SLOGAN_WIDTH;
     slogan_x = (uint16_t)(113u + (266u - slogan_width) / 2u);
     max_slogan_x = (uint16_t)(version_x - 8u - slogan_width);
     if (slogan_x > max_slogan_x) slogan_x = max_slogan_x;
     u8g2_SetDrawColor(&u8g2, 1u);
     u8g2_DrawBox(&u8g2, 119u, 134u, 254u, 26u);
     u8g2_SetDrawColor(&u8g2, 0u);
-    /* Dedicated LiSu artwork preserves the normal text advances. */
-    u8g2_DrawXBMP(&u8g2, slogan_x, 138u, UI_RETURN_SLOGAN_WIDTH, 20u,
+    /* Dedicated binary LiSu artwork uses the same ink color as the version. */
+    u8g2_DrawXBMP(&u8g2, slogan_x, 156u - UI_RETURN_SLOGAN_SIZE,
+                  UI_RETURN_SLOGAN_WIDTH, UI_RETURN_SLOGAN_HEIGHT,
                   ui_menu_return_slogan);
 #ifdef UI_PREVIEW
     {
         extern void ui_preview_text(uint16_t, uint16_t, const char *, uint8_t, unsigned);
-        ui_preview_text(slogan_x, 155u, slogan, 18u, 0u);
+        ui_preview_text(slogan_x, 155u, slogan, UI_RETURN_SLOGAN_SIZE, 0u);
     }
 #endif
     ui_text_draw(version_x, 155u, version, 18u);

@@ -8,7 +8,7 @@ from pathlib import Path
 import hashlib
 import re
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageChops
 
 ROOT = Path(__file__).resolve().parents[1]
 REFERENCE = ROOT / "tools/ui_reference/chumaoli/二级页面"
@@ -41,7 +41,7 @@ def array(name, image):
     return f"static const uint8_t {name}[] = {{\n" + ",\n".join(lines) + "\n};\n"
 
 
-def glyph(char, path, size):
+def glyph(char, path, size, stroke_width=0, threshold=140):
     scale = 4
     face = ImageFont.truetype(str(path), size * scale)
     advance = round(face.getlength(char) / scale)
@@ -51,9 +51,9 @@ def glyph(char, path, size):
         # Keep the below-baseline underscore inside the existing glyph canvas.
         baseline = min(baseline, canvas.height - face.getbbox(char, anchor="ls")[3])
     ImageDraw.Draw(canvas).text((0, baseline), char, anchor="ls",
-                               font=face, fill=255)
+                               font=face, fill=255, stroke_width=stroke_width)
     image = canvas.resize((advance, size + 2), Image.Resampling.LANCZOS)
-    image = image.point(lambda pixel: 255 if pixel >= 140 else 0, mode="1")
+    image = image.point(lambda pixel: 255 if pixel >= threshold else 0, mode="1")
     if 32 < ord(char) < 127 and image.getbbox() is None:
         raise ValueError(f"Printable ASCII glyph is empty: {char!r} at {size}px")
     return image
@@ -78,13 +78,13 @@ def warning_glyph(path, size):
 
 
 def return_slogan(font_path, lishu_path):
-    # Keep the existing advances and footer geometry; change only letterforms.
+    # Slightly larger LiSu; strengthen at 4x before reducing to binary pixels.
     text = "精确 稳定 可靠"
-    widths = [glyph(char, font_path, 18).width for char in text]
-    image = Image.new("1", (sum(widths), 20), 0)
+    widths = [glyph(char, font_path, 22).width for char in text]
+    image = Image.new("1", (sum(widths), 24), 0)
     x = 0
     for char, advance in zip(text, widths):
-        part = glyph(char, lishu_path, 18)
+        part = glyph(char, lishu_path, 22, stroke_width=1, threshold=180)
         if char != " ":
             image.paste(part, (x + (advance - part.width) // 2, 0))
         x += advance
@@ -95,19 +95,26 @@ def return_artwork(reference, font_path, lishu_path):
     """Replace ordinary text while preserving the brand, icons and rules.
 
     Bounds below use the full 384x168 reference coordinates. The lower
-    '三为矿安' wordmark is brand artwork and remains an explicit exception.
+    '三为矿安' retains its original shape with stronger horizontal strokes.
     """
     page = reference.crop((113, 1, 379, 167)).point(
         lambda p: 255 if p >= 128 else 0, "1")
+    # Strengthen only the supplied wordmark, without blurring its vertical gaps.
+    brand_box = (143 - 113, 118 - 1, 239 - 113, 134 - 1)
+    brand = page.crop(brand_box)
+    shifted = Image.new("1", brand.size, 0)
+    shifted.paste(brand, (1, 0))
+    page.paste(ImageChops.lighter(brand, shifted), brand_box)
     for bounds, text, size, baseline in (
             ((156, 10, 239, 35), "返回主页", 20, 32),
             ((141, 52, 250, 75), "是否返回主页?", 16, 70),
-            ((249, 117, 347, 138), "安全相伴", 16, 134),
+            ((249, 112, 347, 138), "安全相伴", 20, 134),
             ((163, 141, 329, 155), "精确 · 稳定 · 可靠", 11, 153)):
         left, top, right, bottom = bounds
         page.paste(0, (left - 113, top - 1, right - 113, bottom - 1))
         face = lishu_path if text == "安全相伴" else font_path
-        images = [glyph(char, face, size) for char in text]
+        images = [glyph(char, face, size, stroke_width=1, threshold=180)
+                  if text == "安全相伴" else glyph(char, face, size) for char in text]
         width = sum(image.width for image in images)
         if width > right - left:
             raise ValueError(f"Return-home text exceeds its region: {text}")
@@ -166,6 +173,7 @@ def main():
     slogan = return_slogan(args.font, args.lishu_font)
     parts.append(array("ui_menu_return_slogan", slogan))
     parts.append(f"#define UI_RETURN_SLOGAN_WIDTH {slogan.width}u\n")
+    parts.append("#define UI_RETURN_SLOGAN_SIZE 22u\n#define UI_RETURN_SLOGAN_HEIGHT 24u\n")
     parts.append("static const uint8_t *const ui_menu_nav_icons[] = {\n    " +
                  ", ".join(f"ui_menu_nav_{i}" for i in range(8)) + "\n};\n")
     parts.append("static const uint8_t *const ui_menu_title_icons[] = {\n    " +
