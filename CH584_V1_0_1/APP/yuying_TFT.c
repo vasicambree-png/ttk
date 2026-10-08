@@ -1023,7 +1023,7 @@ void binding_Control(void)
     char buf[48];
     if (re == 2) { binding_scan_page(rank3); return; }
     if (re == 1 && Data_list1.menu_rank == 3u) { binding_device_list_page(rank3); return; }
-    sprintf(buf, "已绑定设备:%d", g_binding_count);
+    sprintf(buf, "已绑定设备:%u台", (unsigned int)g_binding_count);
     ui_menu_control(117u, 50u, 258u, 25u, buf, ui_menu_selected(0u), 0u);
     ui_menu_control(117u, 79u, 258u, 25u, "一键解绑", ui_menu_selected(1u), 0u);
     ui_menu_control(117u, 108u, 258u, 25u, "绑定设备", ui_menu_selected(2u), 0u);
