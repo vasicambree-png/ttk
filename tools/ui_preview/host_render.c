@@ -493,7 +493,7 @@ static void longest_names(void) {
 }
 
 static void render_menu_cases(void) {
-    static const unsigned focus_count[8] = {6, 4, 4, 3, 5, 8, 5, 1};
+    static const unsigned focus_count[8] = {6, 2, 4, 3, 5, 8, 5, 1};
     static const uint16_t address_values[] = {0, 121, 122, 65535};
     static const uint16_t pages[] = {0, 1, 2, 65535};
     static const int8_t rssi_values[] = {-128, -1, 0, 127};
@@ -507,6 +507,12 @@ static void render_menu_cases(void) {
             snprintf(name, sizeof(name), "menu_all_%u_focus_%u", m, s);
             render(name, 3, m, 0, s, 1);
         }
+    }
+    /* Obsolete STM32 focus IDs are rendered defensively but are not selectable
+     * on the two-action networking screen. This does not simulate MCU key logic. */
+    for (s = 2; s <= 3; ++s) {
+        snprintf(name, sizeof(name), "menu_networking_obsolete_focus_%u", s);
+        render(name, 3, 1, 0, s, 1);
     }
     for (re = 1; re <= 6; ++re) {
         n = (re == 1 || re == 2 || re == 6) ? 2 : 1;
