@@ -164,3 +164,13 @@ FLASH210788字节、RAM65920字节。68个绘图用例、22195项布局检查零
 预览与报告在`tools/ui_preview/output/home_header_match_20261007/`，HEX在
 `tools/screen_power_build/output/CH584M_TFT_HB.hex`；缓存与既有未跟踪文件不暂存。
 烧录、真实UART/BLE、实屏字体和长地址显示尚未验证。
+
+### 保留状态标签
+
+后续按用户反馈恢复所有地址组合中的“状态”两字，保留14px；最小间距调整为3px，
+常用关机发往分站组合恢复完整标签，最长地址仅压缩分隔符，数字不截断。
+原生fetch后本地与`origin/main`一致。WCH重新编译/链接/生成HEX通过，无固件警告/错误，
+FLASH210808字节、RAM65920字节；68个绘图用例及22195项布局检查零失败，
+43个菜单/提示用例与5个第二页用例逐像素一致。宿主原有36条C4828警告。
+本轮预览在`tools/ui_preview/output/home_state_label_restore_20261007/`。
+烧录和实屏尚未验证；同步仅包含UI、相应检查及说明。

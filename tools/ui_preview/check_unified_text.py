@@ -47,17 +47,17 @@ def check(output, home_only=False):
     for case, rows in records.items():
         if case.startswith("home_") or case == "save_message_tick2_home":
             require(logos[case] == [(9, 5, 88, 44)], case + ": shared enlarged logo position and size")
-            states = [row for row in rows if row[3].startswith("状态：") or row[3] in ("开机", "关机")]
+            states = [row for row in rows if row[3].startswith("状态")]
             for state in states:
-                machine = next(row for row in rows if row[3].startswith(("本机号：", "本机:")))
-                station = next(row for row in rows if row[3].startswith(("分站：", "分站:")))
+                machine = next(row for row in rows if row[3].startswith("本机"))
+                station = next(row for row in rows if row[3].startswith("分站"))
                 expected_size = 14
                 require(machine[1:3] == (44, expected_size) and machine[0] + width(machine) == 372 and
                         station[1:3] == (44, expected_size) and state[:3] == (102, 44, expected_size),
                         case + ": state and address header matches page-two 14px statistics")
                 first_gap = station[0] - state[0] - width(state)
                 second_gap = machine[0] - station[0] - width(station)
-                require(min(first_gap, second_gap) >= 4 and abs(first_gap - second_gap) <= 1,
+                require(min(first_gap, second_gap) >= 3 and abs(first_gap - second_gap) <= 1,
                         case + ": free space is shared equally between header groups")
                 require(state[0] >= 98 and state[0] + width(state) < station[0] and
                         station[0] + width(station) < machine[0] and machine[0] + width(machine) <= 372,
@@ -89,7 +89,7 @@ def check(output, home_only=False):
                     left, right = (8, 186) if x < 190 else (197, 375)
                     require(left <= x0 <= x1 <= right and 53 + 22 * row_index <= y0 <= y1 <= 73 + 22 * row_index,
                             case + ": ink inside its data cell " + text)
-                elif text.startswith(("本机号：", "本机:", "分站：", "分站:", "状态：", "已绑定:", "已用通道:", "报警:")) or text in ("开机", "关机"):
+                elif text.startswith(("本机", "分站", "状态", "已绑定:", "已用通道:", "报警:")):
                     require(98 <= x0 <= x1 <= 372 and 31 <= y0 <= y1 <= 46,
                             case + ": header ink beside logo " + text)
             for index, a in enumerate(case_inks):
@@ -97,8 +97,8 @@ def check(output, home_only=False):
                     require(a[5] < b[3] or b[5] < a[3] or a[6] < b[4] or b[6] < a[4],
                             case + ": separate ink " + a[7] + " / " + b[7])
     for case, labels in (
-        ("home_state_off_station", ("关机", "分站:64", "本机:118-->分站")),
-        ("home_uint16_max", ("开机", "分站:65535", "本机:65535-->65535")),
+        ("home_state_off_station", ("状态：关机", "分站：64", "本机号：118-->分站")),
+        ("home_uint16_max", ("状态:开机", "分站65535", "本机65535>65535")),
     ):
         require(all(count(case, label) == 1 for label in labels),
                 case + ": complete state and addresses at the shared header size")

@@ -220,7 +220,7 @@ void ui_preview_text(uint16_t x, uint16_t y, const char *text, uint8_t size, uns
             (x < 40u || (x >= 203u && x < 225u)) && y >= 60u && y <= 158u && badge_count < 32u)
             strcpy(badge_text[badge_count++], text);
         if (size == 18u) home_new_layout = 1u;
-        if (!strncmp(text, "状态：", strlen("状态：")) ||
+        if (!strncmp(text, "状态", strlen("状态")) ||
             !strcmp(text, "开机") || !strcmp(text, "关机")) {
             ++home_state_count;
             home_state_baseline = y;
