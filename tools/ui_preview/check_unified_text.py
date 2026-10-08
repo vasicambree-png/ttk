@@ -57,7 +57,7 @@ def check(output, home_only=False):
             states = [row for row in rows if row[3].startswith("状态")]
             is_page2 = pages[case] == 2
             voltage = [row for row in rows if re.fullmatch(r"\d+\.\d{2}V", row[3])]
-            wifi = [bitmap for bitmap in bitmaps[case] if bitmap[2:] == (21, 17)]
+            wifi = [bitmap for bitmap in bitmaps[case] if bitmap[2:] in ((29, 21), (21, 17))]
             require(not any(row[3].startswith("报警:") for row in rows), case + ": alarm removed from home metadata")
             if not is_page2:
                 require(not states and len(voltage) == 1 and len(wifi) == 1,
@@ -66,8 +66,11 @@ def check(output, home_only=False):
                     size = 16 if sum(tables[16][ord(char)] for char in value[3]) <= 58 else 14
                     require(value[1:3] == (29, size) and value[0] + width(value) == 376,
                             case + ": page-one voltage at the top-right baseline")
-                    require(len(wifi) == 1 and wifi[0] == (value[0] - 27, 14, 21, 17) and wifi[0][0] >= 290,
-                            case + ": larger wireless icon sits six pixels left of the voltage and clears the title wing")
+                    large = width(value) <= 46
+                    icon_w, icon_h, icon_y = (29, 21, 10) if large else (21, 17, 14)
+                    require(len(wifi) == 1 and wifi[0] == (value[0] - icon_w - 3, icon_y, icon_w, icon_h) and
+                            wifi[0][0] >= (298 if large else 293),
+                            case + ": proportioned wireless icon sits three pixels left of the voltage and clears the title wing")
                 machine = next(row for row in rows if row[3].startswith("本机"))
                 station = next(row for row in rows if row[3].startswith("分站"))
                 require(machine[1:3] == (44, 14) and machine[0] + width(machine) == 366 and
