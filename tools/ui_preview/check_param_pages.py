@@ -69,9 +69,9 @@ def check(output):
                 name + ": forty data fields at eleven pixels and fourteen-pixel pitch")
         title = "信息汇总" if kind == 5 else "安装调试"
         subtitle = {3: "信号", 4: "电压", 5: "名称"}[kind]
-        require(len(rows) == 43 and (29, 16, 14, title) in rows and
-                (200, 16, 11, subtitle) in rows,
-                name + ": compact title and subtitle above data")
+        require(len(rows) == 42 and (29, 16, 14, title) in rows and
+                not any(row[3] == subtitle for row in rows),
+                name + ": compact menu title retained without data subtitle")
         require(sum(row[3] == "返回" and row[0] >= 298 and row[1:3] == (16, 14)
                     for row in rows) == 1,
                 name + ": compact return at upper right")
@@ -89,13 +89,13 @@ def check(output):
         data_ink = [row for row in inks[name] if 22 <= row[1] < 164 and row[3] >= 0]
         require(len(data_ink) == len(data), name + ": visible ink for every data field")
         header_ink = [row for row in inks[name] if row[1] == 16 and row[3] >= 0]
-        require(len(header_ink) == 3 and all(7 <= row[3] <= row[5] <= 376 and
+        require(len(header_ink) == 2 and all(7 <= row[3] <= row[5] <= 376 and
                 2 <= row[4] <= row[6] <= 20 for row in header_ink),
                 name + ": header ink fits compressed band")
         for i, a in enumerate(header_ink):
             for b in header_ink[i + 1:]:
                 require(a[5] < b[3] or b[5] < a[3],
-                        name + ": header title/subtitle/return remain separate")
+                        name + ": header title and return remain separate")
         for row in data_ink:
             x, baseline, size, x0, y0, x1, y1, text = row
             left, right = (7, 187) if x < 190 else (196, 376)
@@ -155,7 +155,7 @@ def check(output):
         if int(case["rank"]) == 3 and not case["case"].startswith("message_"):
             full_data = int(case["menu"]) == 3 and int(case["subpage"]) in (3, 4) or \
                         int(case["menu"]) == 6 and int(case["subpage"]) == 5 or \
-                        int(case["menu"]) == 2 and int(case["subpage"]) == 1
+                        int(case["menu"]) == 2 and int(case["subpage"]) in (1, 2)
             if not full_data:
                 titles = ("地址分区", "组网测试", "设备绑定", "安装调试", "上传设置", "其他设置", "信息汇总", "返回主页")
                 require((141, 20, 14, titles[int(case["menu"])]) in records[case["case"]],
@@ -192,13 +192,45 @@ def check(output):
                 raw = int(name.removeprefix("return_version_"))
                 require(versions and versions[0][3] == f"V{raw // 10}.{raw % 10}",
                         name + ": version follows controller tenths format")
-        if int(case["rank"]) != 3 or int(case["menu"]) != 2 or int(case["subpage"]) != 1:
+        if int(case["rank"]) != 3 or int(case["menu"]) != 2 or int(case["subpage"]) not in (1, 2):
+            continue
+        if int(case["subpage"]) == 2:
+            require((29, 16, 14, "设备绑定") in rows and
+                    (14, 42, 14, "扫描到的蓝牙名称") in rows and
+                    sum(row[3] == "保存目前设备" for row in rows) == 1 and
+                    sum(row[3] == "返回" for row in rows) == 1 and
+                    not any(row[3] == "地址分区" for row in rows),
+                    name + ": fullscreen scan page retains title, cache and actions")
+            names = [row for row in rows if 60 <= row[1] <= 125]
+            require(1 <= len(names) <= 6 and all(row[0] == 14 and row[1] in range(60, 126, 13)
+                    and row[2] == 11 for row in names) if "empty" not in name else
+                    names == [(14, 60, 14, "--")],
+                    name + ": scan names or empty placeholder in full-width content")
+            if name.startswith("subpage_scan_longest_"):
+                require([row[3] for row in names] == ["W" * 29] * 6,
+                        name + ": all six longest scan names are untruncated")
+            elif "empty" not in name:
+                require([row[3] for row in names] == [f"SW_{i:02d}_WY_01-04" for i in range(1, 7)],
+                        name + ": scan cache order is preserved")
+            scan_ink = [row for row in inks[name] if 60 <= row[1] <= 125 and row[3] >= 0]
+            require(all(14 <= row[3] <= row[5] < 368 and 48 <= row[4] <= row[6] < 140
+                    for row in scan_ink), name + ": names fit above action buttons")
             continue
         require((29, 16, 14, "设备绑定") in rows and
                 sum(row[3] == "解绑" for row in rows) == 1 and
                 sum(row[3] == "返回" for row in rows) == 1 and
                 not any(row[3] == "地址分区" for row in rows),
                 name + ": fullscreen binding page replaces sidebar and retains actions")
+        counts = [row for row in rows if re.fullmatch(r"总设备数:\d+台", row[3])]
+        require(len(counts) == 1 and counts[0][:3] == (108, 16, 14),
+                name + ": device count uses title size and device unit")
+        header_ink = [row for row in inks[name] if row[1] < 22 and row[3] >= 0]
+        require(len(header_ink) == 4 and all(2 <= row[4] <= row[6] <= 20 for row in header_ink),
+                name + ": binding header ink fits top band")
+        for i, a in enumerate(header_ink):
+            for b in header_ink[i + 1:]:
+                require(a[5] < b[3] or b[5] < a[3],
+                        name + ": count, title and actions do not overlap")
         data = [row for row in rows if row[1] >= 22]
         labels = [row for row in data if re.fullmatch(r"[1-9]\d*:", row[3])]
         require(len(data) == len(labels) * 3 and len(labels) <= 10,
