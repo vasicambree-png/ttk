@@ -9,12 +9,15 @@ import re
 def check(output):
     root = Path(__file__).resolve().parents[2]
     header = (root / "CH584_V1_0_1/APP/include/ui_menu_assets.h").read_text(encoding="utf-8")
-    glyphs = re.search(r"ui_menu_glyphs_11\[\] = \{(.*?)\};", header, re.S).group(1)
-    widths = {int(code, 16): int(width) for code, width in
-              re.findall(r"\{0x([0-9a-f]+), (\d+)u,", glyphs)}
+    font_widths = {}
+    for size in (11, 18):
+        glyphs = re.search(rf"ui_menu_glyphs_{size}\[\] = \{{(.*?)\}};", header, re.S).group(1)
+        font_widths[size] = {int(code, 16): int(glyph_width) for code, glyph_width in
+                             re.findall(r"\{0x([0-9a-f]+), (\d+)u,", glyphs)}
 
-    def width(text):
-        return sum(widths.get(ord(char), widths[ord('?')]) for char in text)
+    def width(text, size=11):
+        glyph_widths = font_widths[size]
+        return sum(glyph_widths.get(ord(char), glyph_widths[ord('?')]) for char in text)
 
     records, inks = defaultdict(list), defaultdict(list)
     for line in (output / "after/draws.tsv").read_text(encoding="utf-8").splitlines():
@@ -196,12 +199,12 @@ def check(output):
         rows = records[name]
         if int(case["menu"]) == 7 and int(case["rank"]) in (2, 3):
             versions = [row for row in rows if re.fullmatch(r"V\d+\.\d", row[3])]
-            require(len(versions) == 1 and versions[0][1:3] == (153, 11) and
-                    versions[0][0] + width(versions[0][3]) == 368,
+            require(len(versions) == 1 and versions[0][1:3] == (155, 18) and
+                    versions[0][0] + width(versions[0][3], 18) == 368,
                     name + ": controller version at lower-right corner")
             version_inks = [row for row in inks[name] if re.fullmatch(r"V\d+\.\d", row[7])]
             require(len(version_inks) == 1 and 118 <= version_inks[0][3] <= version_inks[0][5] <= 372 and
-                    140 <= version_inks[0][4] <= version_inks[0][6] <= 157,
+                    134 <= version_inks[0][4] <= version_inks[0][6] <= 159,
                     name + ": version ink inside footer band")
             slogans = [row for row in inks[name] if row[7] == "精确 · 稳定 · 可靠"]
             require(len(slogans) == 1 and len(version_inks) == 1 and
@@ -223,7 +226,7 @@ def check(output):
             row_step = 11 if expected_count <= 20 else 13
             name_width = 147 if expected_count <= 20 else 64
             require((29, 20, 18, "设备绑定") in rows and
-                    (108, 16, 14, f"已绑定设备:{expected_count}台") in rows and
+                    (108, 20, 18, f"已绑定设备:{expected_count}台") in rows and
                     sum(row[3] == "保存目前设备" for row in rows) == 1 and
                     sum(row[3] == "返回" for row in rows) == 1 and
                     not any(row[3] == "地址分区" for row in rows),
@@ -282,7 +285,7 @@ def check(output):
                 not any(row[3] == "地址分区" for row in rows),
                 name + ": fullscreen binding page replaces sidebar and retains actions")
         counts = [row for row in rows if re.fullmatch(r"总设备数:\d+台", row[3])]
-        require(len(counts) == 1 and counts[0][:3] == (108, 16, 14),
+        require(len(counts) == 1 and counts[0][:3] == (108, 20, 18),
                 name + ": device count uses title size and device unit")
         header_ink = [row for row in inks[name] if row[1] < 22 and row[3] >= 0]
         require(len(header_ink) == 2 and all(2 <= row[4] <= row[6] <= 22 for row in header_ink),
