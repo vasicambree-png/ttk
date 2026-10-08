@@ -622,19 +622,11 @@ static void ui_main_meta_draw(uint16_t x, uint16_t baseline, const char *text, u
 static void ui_main_header_triplet(const char *left, const char *middle, const char *right)
 {
     uint16_t left_w, middle_w, right_w, total_w, gap, middle_x, right_x;
-    uint8_t size = 14u;
+    const uint8_t size = 14u;
     left_w = ui_text_width(left, size);
     middle_w = ui_text_width(middle, size);
     right_w = ui_text_width(right, size);
     total_w = (uint16_t)(left_w + middle_w + right_w);
-    if (total_w + 2u * HOME_STATUS_MIN_GAP > HOME_STATUS_HOST_RIGHT - HOME_STATUS_LEFT)
-    {
-        size = 11u;
-        left_w = ui_text_width(left, size);
-        middle_w = ui_text_width(middle, size);
-        right_w = ui_text_width(right, size);
-        total_w = (uint16_t)(left_w + middle_w + right_w);
-    }
     gap = (uint16_t)((HOME_STATUS_HOST_RIGHT - HOME_STATUS_LEFT - total_w) / 2u);
     middle_x = (uint16_t)(HOME_STATUS_LEFT + left_w + gap);
     right_x = (uint16_t)(HOME_STATUS_HOST_RIGHT - right_w);
@@ -700,6 +692,15 @@ void UI_Main_Display(data_LIST *pData)
             const char *state = (pData->UI_main.state == 1) ? "状态：开机" : "状态：关机";
             sprintf(buf, "本机号：%d-->%s", pData->UI_main.host_num, send_str);
             sprintf(station_str, "分站：%d", pData->UI_main.sub_num);
+            /* Shorten labels for long addresses, keeping both pages at 14px. */
+            if (ui_text_width(state, 14u) + ui_text_width(station_str, 14u) +
+                ui_text_width(buf, 14u) + 2u * HOME_STATUS_MIN_GAP >
+                HOME_STATUS_HOST_RIGHT - HOME_STATUS_LEFT)
+            {
+                state = (pData->UI_main.state == 1) ? "开机" : "关机";
+                sprintf(station_str, "分站:%d", pData->UI_main.sub_num);
+                sprintf(buf, "本机:%d-->%s", pData->UI_main.host_num, send_str);
+            }
             ui_main_header_triplet(state, station_str, buf);
         }
     }

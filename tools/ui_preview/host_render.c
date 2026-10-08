@@ -220,7 +220,8 @@ void ui_preview_text(uint16_t x, uint16_t y, const char *text, uint8_t size, uns
             (x < 40u || (x >= 203u && x < 225u)) && y >= 60u && y <= 158u && badge_count < 32u)
             strcpy(badge_text[badge_count++], text);
         if (size == 18u) home_new_layout = 1u;
-        if (!strncmp(text, "状态：", strlen("状态："))) {
+        if (!strncmp(text, "状态：", strlen("状态：")) ||
+            !strcmp(text, "开机") || !strcmp(text, "关机")) {
             ++home_state_count;
             home_state_baseline = y;
         }
@@ -715,6 +716,10 @@ int main(int argc, char **argv) {
     render_home("home_sub_max", 1);
     Data_list1.UI_main.state = 0;
     render_home("home_state_off", 1);
+    Data_list1.UI_main.host_num = 118;
+    Data_list1.UI_main.sub_num = 64;
+    Data_list1.UI_main.send_host_num = 122;
+    render_home("home_state_off_station", 1);
     init_data(1);
     render_home("home_uint16_max", 1);
     render_home("home_page2_uint16_max", 2);
