@@ -525,7 +525,9 @@ void UI_Control(data_LIST *list)
 #define HOME_NUM_W        24
 #define HOME_DATA_RIGHT   166
 #define HOME_HEADER_BATTERY_RIGHT 372u
-#define HOME_HEADER_BATTERY_BASE  20u
+#define HOME_HEADER_BATTERY_BASE  23u
+#define HOME_WIRELESS_TOP         12u
+#define HOME_WIRELESS_GAP         4u
 #define HOME_STATUS_BASELINE      44u
 #define HOME_STATUS_LEFT          102u
 #define HOME_STATUS_HOST_RIGHT    372u
@@ -618,16 +620,18 @@ static void ui_main_meta_draw(uint16_t x, uint16_t baseline, const char *text, u
     ui_text_draw(x, baseline, text, size);
 }
 
-static void ui_main_draw_wireless(uint8_t signal)
+static void ui_main_draw_wireless(uint8_t signal, uint16_t voltage_x)
 {
     /* This is a display-level convention for the controller's LoRa field. */
     uint8_t icon = signal <= 3u ? signal : 4u;
-    u8g2_DrawXBMP(&u8g2, 359u, 21u, UI_WIRELESS_WIDTH, UI_WIRELESS_HEIGHT,
+    u8g2_DrawXBMP(&u8g2, (uint16_t)(voltage_x - UI_WIRELESS_WIDTH - HOME_WIRELESS_GAP),
+                  HOME_WIRELESS_TOP, UI_WIRELESS_WIDTH, UI_WIRELESS_HEIGHT,
                   ui_wireless_icons[icon]);
 }
 
 /* The optional device-count unit has its own explicit pixel gap. */
-static void ui_main_header_pair(const char *left, const char *unit, const char *right)
+static void ui_main_header_pair(const char *left, const char *unit, const char *right,
+                                const char *middle)
 {
     const uint8_t size = 14u;
     uint16_t right_x = (uint16_t)(HOME_STATUS_HOST_RIGHT - ui_text_width(right, size));
@@ -636,6 +640,11 @@ static void ui_main_header_pair(const char *left, const char *unit, const char *
         ui_main_meta_draw((uint16_t)(HOME_STATUS_LEFT + ui_text_width(left, size) +
                                     HOME_BOUND_UNIT_GAP), HOME_STATUS_BASELINE, unit, size);
     ui_main_meta_draw(right_x, HOME_STATUS_BASELINE, right, size);
+    if (middle)
+        ui_main_meta_draw((uint16_t)(HOME_STATUS_LEFT +
+                          (HOME_STATUS_HOST_RIGHT - HOME_STATUS_LEFT -
+                           ui_text_width(middle, size)) / 2u),
+                          HOME_STATUS_BASELINE, middle, size);
 }
 
 /* 通道号在徽标中居中，并为两位数与框线保留一像素空白。 */
@@ -683,7 +692,8 @@ void UI_Main_Display(data_LIST *pData)
                 pData->UI_main.vbat % 100 % 10);
         w = (uint16_t)ui_text_width(buf, 14u);
         ui_draw((uint16_t)(HOME_HEADER_BATTERY_RIGHT - w), HOME_HEADER_BATTERY_BASE, buf);
-        ui_main_draw_wireless(pData->UI_main.Lora_rssi);
+        ui_main_draw_wireless(pData->UI_main.Lora_rssi,
+                              (uint16_t)(HOME_HEADER_BATTERY_RIGHT - w));
         if (pData->UI_main.send_host_num == 122u)      sprintf(send_str, "分站");
         else if (pData->UI_main.send_host_num == 121u) sprintf(send_str, "无");
         else if (pData->UI_main.send_host_num == 0u)   sprintf(send_str, "中继");
@@ -693,15 +703,8 @@ void UI_Main_Display(data_LIST *pData)
             char station_str[20];
             sprintf(buf, "本机号:%d-->%s", pData->UI_main.host_num, send_str);
             sprintf(station_str, "分站号:%d", pData->UI_main.sub_num);
-            ui_main_header_pair(station_str, NULL, buf);
+            ui_main_header_pair(station_str, NULL, buf, NULL);
         }
-    }
-    else
-    {
-        const char *state = pData->UI_main.state == 1u ? "状态:开机" : "状态:关机";
-        w = ui_text_width(state, 14u);
-        ui_main_meta_draw((uint16_t)(HOME_HEADER_BATTERY_RIGHT - w),
-                          HOME_HEADER_BATTERY_BASE, state, 14u);
     }
 
     /* ---------- 两页共用同一位置的左右数据框 ---------- */
@@ -757,7 +760,8 @@ void UI_Main_Display(data_LIST *pData)
         char bound_str[20], used_str[24];
         sprintf(bound_str, "已绑定:%u", (unsigned int)g_binding_count);
         sprintf(used_str, "已用通道:%d", count_used_channels());
-        ui_main_header_pair(bound_str, "台", used_str);
+        const char *state = pData->UI_main.state == 1u ? "状态:开机" : "状态:关机";
+        ui_main_header_pair(bound_str, "台", used_str, state);
     }
     u8g2_SetBitmapMode(&u8g2, bitmap_mode);
 }

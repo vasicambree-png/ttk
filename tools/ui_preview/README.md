@@ -7,17 +7,17 @@ python tools/ui_preview/run_preview.py
 ```
 
 当前主页两页统一88×44 Logo、18px数据文字和22px行距，顶栏14px。
-2026-10-08：每翼两条斜线；第一页右上电压与无线图标，下方为分站号和右对齐本机号；
-第二页右上状态:开机/关机，下方为已绑定数字、独立间隔4px的“台”和已用通道，
+2026-10-08：每翼两条斜线；第一页无线图标位于电压左侧，两者同行，下方为分站号和右对齐本机号；
+第二页信息栏从左到右为已绑定数字、独立间隔4px的“台”、居中的状态:开机/关机和已用通道，
 不显示电压、无线图标、报警。冒号仍为4px窄字模，最长数字完整显示。
 主页范围检查真实文字墨迹、单元格边界及内部碰撞，两页等待/真实零值/部分接收独立检查。
 无线图标是Wi-Fi外形，读取主控`UI_main.Lora_rssi`；本次显示约定0无、1弱、2中、3强，
 其他值显示问号。仓库无独立Wi-Fi联网字段，主控是否按此约定下发尚未验证。
 资源由`tools/generate_wireless_assets.py`生成；“台”由已有菜单字模生成器补齐四种字号。
-本轮独立预览在`output/home_wireless_layout_20261008/`，复验命令：
+本轮独立预览在`output/home_center_layout_20261008/`，复验命令：
 
 ```powershell
-python -B tools/ui_preview/run_preview.py --scope home --output output/home_wireless_layout_20261008 --phase after
+python -B tools/ui_preview/run_preview.py --scope home --output output/home_center_layout_20261008 --phase after
 ```
 
 工具使用完整 `CH584_V1_0_1/APP/yuying_TFT.c` 和实际工程头文件，直接编译工程的字体解码、UTF-8 解码、位图、矩形、圆角和线条绘制算法。只将显示端点接到本地 384×168 单色像素数组，并把 GPIO/SPI/延时端点设为空操作。源码仅在生成的宿主副本中将 MSVC 不接受的未使用空数组调整为一个零字节。

@@ -57,14 +57,16 @@ def check(output, home_only=False):
             states = [row for row in rows if row[3].startswith("状态")]
             is_page2 = pages[case] == 2
             voltage = [row for row in rows if re.fullmatch(r"\d+\.\d{2}V", row[3])]
-            wifi = [bitmap for bitmap in bitmaps[case] if bitmap == (359, 21, 13, 11)]
+            wifi = [bitmap for bitmap in bitmaps[case] if bitmap[2:] == (13, 11)]
             require(not any(row[3].startswith("报警:") for row in rows), case + ": alarm removed from home metadata")
             if not is_page2:
                 require(not states and len(voltage) == 1 and len(wifi) == 1,
                         case + ": page one shows voltage and wireless bitmap without status")
                 for value in voltage:
-                    require(value[1:3] == (20, 14) and value[0] + width(value) == 372,
+                    require(value[1:3] == (23, 14) and value[0] + width(value) == 372,
                             case + ": page-one voltage at the top-right baseline")
+                    require(len(wifi) == 1 and wifi[0] == (value[0] - 17, 12, 13, 11),
+                            case + ": wireless icon sits four pixels left of the voltage")
                 machine = next(row for row in rows if row[3].startswith("本机"))
                 station = next(row for row in rows if row[3].startswith("分站"))
                 require(machine[1:3] == (44, 14) and machine[0] + width(machine) == 372 and
@@ -76,8 +78,8 @@ def check(output, home_only=False):
                 require(len(states) == 1 and not voltage and not wifi,
                         case + ": page two shows status without voltage or wireless bitmap")
                 for state in states:
-                    require(state[1:3] == (20, 14) and state[0] + width(state) == 372 and
-                            state[3] in ("状态:开机", "状态:关机"), case + ": complete status label at top right")
+                    require(state[1:3] == (44, 14) and state[0] == 102 + (270 - width(state)) // 2 and
+                            state[3] in ("状态:开机", "状态:关机"), case + ": complete status centered between the statistics")
             stats = [row for row in rows if row[3].startswith(("已绑定:", "已用通道:"))]
             units = [row for row in rows if row[1] == 44 and row[3] == "台"]
             require((not is_page2 and not stats and not units) or
@@ -93,6 +95,9 @@ def check(output, home_only=False):
                 require(unit[0] - bound[0] - width(bound) == 4 and
                         used[0] - unit[0] - width(unit) >= 4,
                         case + ": binding count has a separate unit with a four-pixel advance gap")
+                require(len(states) == 1 and states[0][0] - unit[0] - width(unit) >= 4 and
+                        used[0] - states[0][0] - width(states[0]) >= 4,
+                        case + ": centered status leaves a clear gap to both statistic groups")
             if case in top_layouts:
                 page, wifi_count, wifi_hash, wifi_ink, wing_failures = top_layouts[case]
                 require(page == (2 if is_page2 else 1) and not wing_failures,
@@ -121,8 +126,8 @@ def check(output, home_only=False):
                     require(left <= x0 <= x1 <= right and 53 + 22 * row_index <= y0 <= y1 <= 73 + 22 * row_index,
                             case + ": ink inside its data cell " + text)
                 elif text.startswith("状态"):
-                    require(286 <= x0 <= x1 <= 372 and 6 <= y0 <= y1 <= 21,
-                            case + ": status ink inside the top-right header")
+                    require(102 <= x0 <= x1 <= 372 and 31 <= y0 <= y1 <= 46,
+                            case + ": status ink inside the central metadata row")
                 elif text.startswith(("本机", "分站", "已绑定:", "已用通道:")) or text == "台":
                     require(98 <= x0 <= x1 <= 372 and 31 <= y0 <= y1 <= 46,
                             case + ": header ink beside logo " + text)
@@ -137,7 +142,7 @@ def check(output, home_only=False):
         require(all(count(case, label) == 1 for label in labels),
                 case + ": complete addresses at the shared header size")
     for state in ("on", "off"):
-        for bound in (0, 20):
+        for bound in (0, 20, 32):
             case = f"home_page2_state_{state}_bound_{bound}"
             require(count(case, "状态:" + ("开机" if state == "on" else "关机")) == 1 and
                     count(case, f"已绑定:{bound}") == 1 and count(case, "台") == 1,

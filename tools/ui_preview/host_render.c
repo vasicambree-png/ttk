@@ -42,6 +42,7 @@ static unsigned custom_points;
 static unsigned home_logo_count, home_logo_width, home_logo_height, home_new_layout;
 static unsigned home_header_bottom, home_state_baseline, home_stats_baseline;
 static unsigned home_relocated_layout, home_wifi_count;
+static unsigned home_wifi_x, home_wifi_y;
 
 /* 主页分页契约检查区域（像素坐标，含边界）。
  *   状态行带：第 1 页必须有墨迹，第 2 页必须全白；
@@ -144,7 +145,11 @@ void u8g2_DrawXBM(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, u8g2_uint_t w, u8g2_u
 void u8g2_DrawXBMP(u8g2_t *u, u8g2_uint_t x, u8g2_uint_t y, u8g2_uint_t w, u8g2_uint_t h, const uint8_t *b) {
     check_box("XBMP", x, y, w, h);
     if (home_page_expect && !strcmp(draw_pass, "primary") &&
-        x == 359u && y == 21u && w == 13u && h == 11u) ++home_wifi_count;
+        w == 13u && h == 11u) {
+        ++home_wifi_count;
+        home_wifi_x = x;
+        home_wifi_y = y;
+    }
     if (home_page_expect && !strcmp(draw_pass, "primary") && x == 9u && y == 5u && w >= 60u && h >= 30u) {
         ++home_logo_count;
         home_logo_width = w;
@@ -316,6 +321,7 @@ static void render(const char *name, unsigned rank, unsigned menu, unsigned re, 
     home_logo_count = home_logo_width = home_logo_height = home_new_layout = 0;
     home_header_bottom = home_state_baseline = home_stats_baseline = 0;
     home_relocated_layout = home_wifi_count = 0;
+    home_wifi_x = home_wifi_y = 0;
     checked_draw();
     memcpy(primary, pixels, sizeof(primary));
     save_pixels(name);
@@ -366,7 +372,7 @@ static void check_home_contract(unsigned page) {
     }
     if (home_new_layout && (home_logo_count != 1u || home_logo_width != 88u || home_logo_height != 44u ||
         home_header_bottom || (home_relocated_layout ?
-            (page == 2u && (home_state_baseline != 20u || home_stats_baseline != 44u)) :
+            (page == 2u && ((home_state_baseline != 20u && home_state_baseline != 44u) || home_stats_baseline != 44u)) :
             (page == 1u ? home_state_baseline != 44u : home_stats_baseline != 44u)))) {
         ++region_violation_total;
         fprintf(draw_log, "HOME_HEADER_CONTRACT\t%s\t%u\t%u\t%u\t%u\n", case_name, page,
@@ -385,7 +391,8 @@ static void check_home_contract(unsigned page) {
     }
     if (home_relocated_layout) {
         unsigned x, y, wing_failures = 0;
-        unsigned wifi_ink = ink_in_region(359u, page == 2u ? 22u : 21u, 371u, 31u);
+        unsigned wifi_ink = home_wifi_count ?
+            ink_in_region(home_wifi_x, home_wifi_y, home_wifi_x + 12u, home_wifi_y + 10u) : 0u;
         uint32_t wifi_hash = 2166136261u;
         for (y = 4u; y < 24u; ++y) {
             unsigned left = 78u + y - 2u;
@@ -395,8 +402,10 @@ static void check_home_contract(unsigned page) {
                 if (pixels[y][x] != expected || pixels[y][383u - x] != expected) ++wing_failures;
             }
         }
-        for (y = 21u; y <= 31u; ++y)
-            for (x = 359u; x <= 371u; ++x) wifi_hash = (wifi_hash ^ pixels[y][x]) * 16777619u;
+        if (home_wifi_count)
+            for (y = home_wifi_y; y <= home_wifi_y + 10u; ++y)
+                for (x = home_wifi_x; x <= home_wifi_x + 12u; ++x)
+                    wifi_hash = (wifi_hash ^ pixels[y][x]) * 16777619u;
         if (wing_failures || home_wifi_count != (page == 1u ? 1u : 0u) ||
             (page == 2u && wifi_ink)) ++region_violation_total;
         fprintf(draw_log, "HOME_TOP_LAYOUT\t%s\t%u\t%u\t%u\t%u\t%u\n", case_name, page,
@@ -732,10 +741,10 @@ int main(int argc, char **argv) {
         render_home(name, 1);
     }
     for (m = 0; m < 2; ++m) {
-        for (s = 0; s < 2; ++s) {
+        for (s = 0; s < 3; ++s) {
             init_data(0);
             Data_list1.UI_main.state = (uint8_t)m;
-            g_binding_count = (uint8_t)(s ? 20u : 0u);
+            g_binding_count = (uint8_t)(s == 2u ? MAX_BINDING_NUM : s ? 20u : 0u);
             snprintf(name, sizeof(name), "home_page2_state_%s_bound_%u", m ? "on" : "off", g_binding_count);
             render_home(name, 2);
         }
