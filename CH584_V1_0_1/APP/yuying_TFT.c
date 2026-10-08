@@ -907,16 +907,21 @@ void UI_Menu_Display(void)
     ui_menu_header(UI_Select);
     Menu_List[UI_Select].function();
 
-    /* Secondary menus use a white right panel with black titles/controls.
-     * XOR reverses the completed artwork, including the return-home bitmap,
-     * without changing the left navigation or any third-level subpage. */
-    if (Data_list1.menu_rank == 2u)
-    {
-        u8g2_SetDrawColor(&u8g2, 2u);
-        u8g2_DrawBox(&u8g2, 113u, 1u, 266u, 166u);
-    }
-
 restore_style:
+    /* Invert the completed drawing for all secondary and third-level pages.
+     * Ordinary pages use only the right pane; detail data/binding pages
+     * replace the whole screen, so their inversion must cover it all. */
+    if (Data_list1.menu_rank == 2u || Data_list1.menu_rank == 3u)
+    {
+        uint8_t re = Data_list1.UI_main.re_flag;
+        uint8_t full_screen = (uint8_t)(Data_list1.menu_rank == 3u &&
+            ((UI_Select == 2u && (re == 1u || re == 2u)) ||
+             (UI_Select == 3u && (re == 3u || re == 4u)) ||
+             (UI_Select == 6u && re == 5u)));
+        u8g2_SetDrawColor(&u8g2, 2u);
+        if (full_screen) u8g2_DrawBox(&u8g2, 1u, 1u, 382u, 166u);
+        else u8g2_DrawBox(&u8g2, 113u, 1u, 266u, 166u);
+    }
     u8g2_SetBitmapMode(&u8g2, bitmap_mode);
     u8g2_SetFontMode(&u8g2, font_mode);
     u8g2_SetDrawColor(&u8g2, draw_color);
@@ -1117,7 +1122,10 @@ static void summary_name_page(void)
 /* 恢复出厂确认子页（re_flag==6）：两项，高亮由 rank3 决定（0=确认，其余=返回） */
 static void summary_factory_page(uint8_t rank3)
 {
-    ui_menu_text(126u, 83u, "确认恢复出厂设置?", 16u);
+    /* Center the confirmation within the right content pane. */
+    const char *prompt = "确认恢复出厂设置?";
+    ui_menu_text((uint16_t)(113u + (266u - ui_menu_text_width(prompt, 16u)) / 2u),
+                 83u, prompt, 16u);
     ui_menu_button(0u, "确认", (uint8_t)(Data_list1.menu_rank == 3u && rank3 == 0u));
     ui_menu_button(1u, "返回", (uint8_t)(Data_list1.menu_rank == 3u && rank3 != 0u));
 }
@@ -1614,6 +1622,8 @@ void zero_setting_Control() {
 void return_main_Control(void)
 {
     char version[16];
+    const char *slogan = "精确 · 稳定 · 可靠";
+    uint16_t version_x, slogan_width, slogan_x, max_slogan_x;
     /* Static reference artwork only; the STM32 still owns the return action. */
     u8g2_SetDrawColor(&u8g2, 1u);
     u8g2_DrawBox(&u8g2, 113u, 1u, 266u, 166u);
@@ -1623,12 +1633,18 @@ void return_main_Control(void)
     /* Controller version is encoded in tenths (10 = V1.0). */
     sprintf(version, "V%u.%u", (unsigned int)(Data_list1.UI_main.version / 10u),
             (unsigned int)(Data_list1.UI_main.version % 10u));
-    /* Enlarge the controller-supplied version while retaining the footer slogan. */
+    /* Center the enlarged 18px slogan in the right pane. Reserve at least
+     * 8px before the unchanged lower-right 18px controller version. */
+    version_x = (uint16_t)(368u - ui_text_width(version, 18u));
+    slogan_width = ui_text_width(slogan, 18u);
+    slogan_x = (uint16_t)(113u + (266u - slogan_width) / 2u);
+    max_slogan_x = (uint16_t)(version_x - 8u - slogan_width);
+    if (slogan_x > max_slogan_x) slogan_x = max_slogan_x;
     u8g2_SetDrawColor(&u8g2, 1u);
     u8g2_DrawBox(&u8g2, 119u, 134u, 254u, 26u);
     u8g2_SetDrawColor(&u8g2, 0u);
-    ui_text_draw(139u, 153u, "精确 · 稳定 · 可靠", 11u);
-    ui_text_draw((uint16_t)(368u - ui_text_width(version, 18u)), 155u, version, 18u);
+    ui_text_draw(slogan_x, 155u, slogan, 18u);
+    ui_text_draw(version_x, 155u, version, 18u);
 }
 
 
