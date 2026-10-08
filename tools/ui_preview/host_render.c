@@ -653,6 +653,7 @@ static void render_menu_cases(void) {
             snprintf(name, sizeof(name), "menu_other_%s_focus_%u", extreme ? "max" : "min", s);
             render(name, 3, 5, 0, s, 1);
         }
+        g_binding_count = extreme ? MAX_BINDING_NUM : 0;
         g_name_err_count = extreme ? NAME_CHK_ERR_NUM : 0;
         g_volt_err_count = extreme ? 255 : 0;
         for (s = 0; s < focus_count[6]; ++s) {

@@ -1121,7 +1121,8 @@ void summary_Control(void)
     char buf[48];
     if (re == 5) { summary_name_page(); return; }
     if (re == 6) { summary_factory_page(rank3); return; }
-    ui_menu_control(117u, 48u, 258u, 20u, "已绑定的设备名称", ui_menu_selected(0u), 0u);
+    sprintf(buf, "已绑定的设备名称:%u台", (unsigned int)g_binding_count);
+    ui_menu_control(117u, 48u, 258u, 20u, buf, ui_menu_selected(0u), 0u);
     sprintf(buf, "蓝牙名称错误警报:%d", g_name_err_count);
     ui_menu_control(117u, 70u, 258u, 20u, buf, ui_menu_selected(1u), 0u);
     sprintf(buf, "蓝牙电压异常警报:%d", g_volt_err_count);
