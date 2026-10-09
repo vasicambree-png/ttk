@@ -8,7 +8,7 @@ from pathlib import Path
 import hashlib
 import re
 
-from PIL import Image, ImageDraw, ImageFont, ImageChops
+from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
 REFERENCE = ROOT / "tools/ui_reference/chumaoli/二级页面"
@@ -68,18 +68,13 @@ def source_characters():
 
 
 def warning_glyph(path, size):
-    """Native hinted Song glyph keeps the dense upper strokes separated."""
+    """Use the same UI font with native monochrome hinting for dense strokes."""
     image = Image.new("L", (size, size + 2), 0)
     draw = ImageDraw.Draw(image)
     draw.fontmode = "1"
     draw.text((0, size - 1), "警", anchor="ls",
               font=ImageFont.truetype(str(path), size), fill=255)
-    # Strengthen vertical/diagonal stems by one horizontal pixel; retain the
-    # vertical gaps in the dense top and the three lower horizontal strokes.
-    image = image.convert("1")
-    shifted = Image.new("1", image.size, 0)
-    shifted.paste(image, (1, 0))
-    return ImageChops.lighter(image, shifted)
+    return image.convert("1")
 
 
 def return_lishu_glyph(char, path):
@@ -134,7 +129,6 @@ def main():
     parser = ArgumentParser(description=__doc__)
     parser.add_argument("--font", type=Path, default=Path("C:/Windows/Fonts/msyhbd.ttc"))
     parser.add_argument("--lishu-font", type=Path, default=Path("C:/Windows/Fonts/SIMLI.TTF"))
-    parser.add_argument("--warning-font", type=Path, default=Path("C:/Windows/Fonts/simsun.ttc"))
     args = parser.parse_args()
     chars = sorted(set(TEXT.replace("\n", "") + "°·") |
                    {chr(code) for code in range(32, 127)} | source_characters())
@@ -142,7 +136,7 @@ def main():
              "#ifndef UI_MENU_ASSETS_H\n#define UI_MENU_ASSETS_H\n#include <stdint.h>\n",
              "typedef struct { uint16_t code; uint8_t width; const uint8_t *bits; } ui_menu_glyph_t;\n"]
     for size in (11, 14, 16, 18):
-        images = [(char, warning_glyph(args.warning_font, size)
+        images = [(char, warning_glyph(args.font, size)
                    if char == "警" and size in (14, 16)
                    else glyph(char, args.font, size)) for char in chars]
         for char, image in images:
