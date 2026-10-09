@@ -938,11 +938,11 @@ restore_style:
  *                            0 且 rank3==0 = 已绑定设备子页
  *
  *   ★ CH584M 只画不执行：真正的解绑由 STM32 发 0x04、保存由 0x05 执行。
- *   ★ 设备行显示 **名称 + 12 位十六进制 MAC**（清单要求"MAC 端可见"）。
- *     名称与 MAC 同行，全屏两列最多20个设备，不轮显。
+ *   ★ 设备行与绑定页一致，只显示序号和名称，不显示 MAC。
+ *     全屏两列最多20个设备，不轮显。
  * ================================================================== */
 
-/* 一键解绑全屏子页：最多20台同屏，保留名称、完整MAC及主控按钮编号。 */
+/* 一键解绑全屏子页：最多20台同屏，保留名称及主控按钮编号。 */
 static void binding_device_list_page(uint8_t rank3)
 {
     char line[48];
@@ -964,16 +964,9 @@ static void binding_device_list_page(uint8_t rank3)
     {
         uint16_t x = (uint16_t)(14u + 189u * (i / rows_per_column));
         uint16_t y = (uint16_t)(33u + 11u * (i % rows_per_column));
-        uint16_t mac_x, name_width;
         sprintf(line, "%u:", (unsigned int)(i + 1u));
         ui_text_draw(x, y, line, 11u);
-        sprintf(line, "%02X%02X%02X%02X%02X%02X",
-                g_binding_list[i].mac[0], g_binding_list[i].mac[1], g_binding_list[i].mac[2],
-                g_binding_list[i].mac[3], g_binding_list[i].mac[4], g_binding_list[i].mac[5]);
-        mac_x = (uint16_t)(x + 172u - ui_text_width(line, 11u));
-        name_width = (uint16_t)(mac_x - x - 30u);
-        ui_draw_name_size((uint16_t)(x + 24u), y, g_binding_list[i].name, name_width, 11u);
-        ui_text_draw(mac_x, y, line, 11u);
+        ui_draw_name_size((uint16_t)(x + 24u), y, g_binding_list[i].name, 147u, 11u);
     }
     ui_menu_control(6u, 140u, 183u, 22u, "解绑", (uint8_t)(rank3 == 0u), 1u);
     ui_menu_control(195u, 140u, 183u, 22u, "返回", (uint8_t)(rank3 != 0u), 1u);

@@ -322,24 +322,19 @@ def check(output):
                     (output / f"after/{reference}.pgm").read_bytes(),
                     name + ": unbind table and action selection remain independent of timer")
         data = [row for row in rows if 22 <= row[1] < 140]
-        require(data == [(14, 33, 11, "--")] if not count else len(data) == count * 3,
-                name + ": all normal bindings retain number, name and complete MAC")
+        require(data == [(14, 33, 11, "--")] if not count else len(data) == count * 2,
+                name + ": all normal bindings retain only number and name")
         for i in range(count):
             left = 14 + 189 * (i // column_rows)
             baseline = 33 + 11 * (i % column_rows)
-            device = data[i * 3:i * 3 + 3]
-            expected_mac = "".join(f"{i + offset:02X}" for offset in range(6))
-            if extreme_mac:
-                expected_mac = ("DD" * 6, "00" * 6, "ABCDEFABCDEF")[int(extreme_mac[1])]
-            mac_x = left + 172 - width(expected_mac)
-            name_width = mac_x - left - 30
+            device = data[i * 2:i * 2 + 2]
+            name_width = 147
             expected_name = "W" * 31 if longest or extreme_mac else f"SW_MG_1_{i + 1}" if boundary else f"SW_{i + 1:02d}_WY_01-04"
             while width(expected_name) > name_width:
                 expected_name = expected_name[:-1]
             require(device == [(left, baseline, 11, f"{i + 1}:"),
-                               (left + 24, baseline, 11, expected_name),
-                               (mac_x, baseline, 11, expected_mac)],
-                    name + ": sequence, clipped name and complete MAC match device " + str(i + 1))
+                               (left + 24, baseline, 11, expected_name)],
+                    name + ": sequence and clipped name match device without MAC " + str(i + 1))
         data_ink = [row for row in inks[name] if 22 <= row[1] < 140 and row[3] >= 0]
         require(len(data_ink) == len(data), name + ": visible ink for every unbind data field")
         for row in data_ink:
@@ -350,7 +345,7 @@ def check(output):
         for i, a in enumerate(data_ink):
             for b in data_ink[i + 1:]:
                 require(a[5] < b[3] or b[5] < a[3] or a[6] < b[4] or b[6] < a[4],
-                        name + ": number, name and MAC ink remain separate")
+                        name + ": number and name ink remain separate")
         action_ink = [row for row in inks[name] if row[7] in ("解绑", "返回") and row[3] >= 0]
         require(len(action_ink) == 2 and all(140 <= row[4] <= row[6] < 162 for row in action_ink) and
                 all((6 <= row[3] <= row[5] < 189) if row[7] == "解绑" else

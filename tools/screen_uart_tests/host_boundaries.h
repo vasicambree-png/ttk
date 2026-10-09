@@ -62,7 +62,10 @@ static void observer_cmd03_answered(void) { mock_cmd03_ready = 0; }
 static void observer_ble_stat_tick(void) { ble_ticks++; }
 static void observer_ble_diag_tick(void) { }
 static uint8_t observer_cmd03_request(void) { cmd03_requests++; return 1; }
-static uint8_t observer_clear_all_bindings(void) { return 1; }
+static uint8_t mock_clear_had = 1;
+static unsigned ram_clear_calls;
+static uint8_t observer_clear_all_bindings(void)
+{ ram_clear_calls++; g_binding_count = 0; return mock_clear_had; }
 static void send_response_frame(uint8_t cmd, uint8_t *data, uint16_t len)
 { last_response_cmd = cmd; last_response_len = len;
   last_response_status = len ? data[0] : 0; response_calls++; }

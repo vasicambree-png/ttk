@@ -1339,6 +1339,21 @@ uint8_t parse_received_frame(uint8_t *rx_buffer, uint16_t data_len, data_LIST *p
                 CMD_LOG("[CMD04] unbind all: had=%d status=%02X (flash clear queued)\r\n",
                         had, status);
             }
+            /* Return from the unbind detail page; keep other pages untouched.
+             * Flash clearing and its result message still run on the tick. */
+            if (pData->menu_rank == 3u && pData->rank2_addr == 2u &&
+                pData->UI_main.re_flag == 1u)
+            {
+                pData->menu_rank = 2u;
+                pData->rank3_addr = 1u;
+                pData->UI_main.re_flag = 0u;
+                g_scan_mode = SCAN_MODE_DATA;
+                screen_power_note_page(&screen_power, TMOS_GetSystemClock(),
+                                       pData->menu_rank, pData->rank2_addr,
+                                       pData->rank3_addr, pData->UI_main.chu_num2,
+                                       pData->UI_main.re_flag,
+                                       pData->Menu_rank6.time_light);
+            }
             break;
         }
         case 0x05:

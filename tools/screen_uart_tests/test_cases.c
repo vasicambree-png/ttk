@@ -44,6 +44,7 @@ static void reset(void)
     last_response_len = 0;
     mock_round_complete = mock_cmd03_ready = 0;
     g_scan_mode = g_binding_count = g_store_dirty = 0;
+    mock_clear_had = 1; ram_clear_calls = 0;
     Rx_sleep_flag = 1; dis_flag_cnt = 0; g_frame_last_sec = FRAME_AGE_NEVER;
     ui_refresh_tick = ui_tick_10ms = ui_last_redraw_10ms = 0;
     g_ui_reinit_req = g_store_clear_req = 0;
@@ -343,6 +344,50 @@ int main(void)
         CHECK(saves == (i >= 2 ? 1u : 0u) && response_calls == (i >= 2 ? 1u : 0u));
     }
     puts("PASS: binding save returns to parent with immediate data scan/power policy; statuses, invalid requests and unrelated pages preserved");
+    for (i = 0; i < 2; i++) {
+        uint8_t clear_frame[] = {0xaa, 0xee, 0, 1, 4, 4, 0x0a};
+        reset(); Data_list1.menu_rank = 3; Data_list1.rank2_addr = 2;
+        Data_list1.rank3_addr = 0; Data_list1.UI_main.re_flag = 1;
+        Data_list1.UI_main.chu_num2 = 1; Data_list1.Menu_rank6.time_light = 2;
+        g_binding_count = 3; mock_clear_had = (uint8_t)i; mock_clock = 20000;
+        enqueue(clear_frame, sizeof(clear_frame)); app_uart_process();
+        CHECK(ram_clear_calls == 1 && g_binding_count == 0);
+        CHECK(response_calls == 1 && last_response_cmd == 4 &&
+              last_response_len == 1 && last_response_status == (i ? 0 : 1));
+        CHECK(g_store_clear_req == 1 && clears == 0);
+        CHECK(Data_list1.menu_rank == 2 && Data_list1.rank2_addr == 2 &&
+              Data_list1.rank3_addr == 1 && Data_list1.UI_main.re_flag == 0);
+        CHECK(g_scan_mode == SCAN_MODE_DATA && dis_flag_cnt == 1);
+        CHECK(screen_power.rank == 2 && screen_power.menu == 2 &&
+              screen_power.focus == 1 && screen_power.subpage == 0 &&
+              screen_power.last_activity == mock_clock);
+        usart_ProcessEvent(0, START_TIMER_EVT);
+        CHECK(clears == 1 && g_store_clear_req == 0 && last_message == UI_MSG_BIND_CLEAR_OK);
+        CHECK(Data_list1.menu_rank == 2 && Data_list1.UI_main.re_flag == 0);
+    }
+    for (i = 0; i < 5; i++) {
+        uint8_t clear_frame[] = {0xaa, 0xee, 0, 1, 4, 4, 0x0a, 0};
+        uint16_t clear_len = 7;
+        screen_power_t policy;
+        reset(); Data_list1.menu_rank = 3; Data_list1.rank2_addr = 2;
+        Data_list1.rank3_addr = 0; Data_list1.UI_main.re_flag = 1;
+        if (i == 0) clear_frame[5] = 5;
+        else if (i == 1) {
+            clear_frame[3] = 2; clear_frame[5] = 0;
+            clear_frame[6] = 4; clear_frame[7] = 0x0a; clear_len = 8;
+        }
+        else if (i == 2) Data_list1.menu_rank = 2;
+        else if (i == 3) Data_list1.rank2_addr = 1;
+        else Data_list1.UI_main.re_flag = 2;
+        saved = Data_list1; policy = screen_power; g_scan_mode = SCAN_MODE_DATA;
+        enqueue(clear_frame, clear_len); app_uart_process();
+        CHECK(memcmp(&saved, &Data_list1, sizeof(saved)) == 0);
+        CHECK(memcmp(&policy, &screen_power, sizeof(policy)) == 0);
+        CHECK(ram_clear_calls == (i >= 2 ? 1u : 0u));
+        CHECK(g_store_clear_req == (i >= 2 ? 1u : 0u));
+        CHECK(response_calls == (i >= 2 ? 1u : 0u));
+    }
+    puts("PASS: unbind returns to parent; deferred flash clear, statuses and invalid/unrelated requests preserved");
     printf("%u checks, %u failures\n", checks, failures);
     return failures ? 1 : 0;
 }
