@@ -1029,7 +1029,7 @@ void binding_Control(void)
 /* ==================================================================
  * 「信息汇总」页（rank2_addr == 6，契约 §1.4）
  *
- *   rank3_addr：0 = 已绑定的设备名称（子页 re_flag=5）
+ *   rank3_addr：0 = 查看已绑定的设备（子页 re_flag=5）
  *               1 = 蓝牙名称错误警报:个数（就地显示 g_name_err_count）
  *               2 = 蓝牙电压异常警报:个数（就地显示 g_volt_err_count）
  *               3 = 恢复出厂（确认子页 re_flag=6）
@@ -1132,7 +1132,7 @@ void summary_Control(void)
     char buf[48];
     if (re == 5) { summary_name_page(); return; }
     if (re == 6) { summary_factory_page(rank3); return; }
-    sprintf(buf, "已绑定的设备名称:%u台", (unsigned int)g_binding_count);
+    sprintf(buf, "查看已绑定的设备:%u台", (unsigned int)g_binding_count);
     ui_menu_control(117u, 48u, 258u, 20u, buf, ui_menu_selected(0u), 0u);
     sprintf(buf, "蓝牙名称错误警报:%d", g_name_err_count);
     ui_menu_control(117u, 70u, 258u, 20u, buf, ui_menu_selected(1u), 0u);
