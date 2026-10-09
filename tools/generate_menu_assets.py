@@ -74,7 +74,18 @@ def warning_glyph(path, size):
     draw.fontmode = "1"
     draw.text((0, size - 1), "警", anchor="ls",
               font=ImageFont.truetype(str(path), size), fill=255)
-    return image.convert("1")
+    original = image.convert("1")
+    image = original.copy()
+    # Add one pixel to the right of stems, while keeping narrow internal
+    # counters open. Do not thicken vertically: lower horizontal gaps are 1px.
+    for y in range(original.height):
+        for x in range(1, original.width):
+            if original.getpixel((x, y)) or not original.getpixel((x - 1, y)):
+                continue
+            if x + 1 < original.width and original.getpixel((x + 1, y)):
+                continue
+            image.putpixel((x, y), 255)
+    return image
 
 
 def return_lishu_glyph(char, path):
