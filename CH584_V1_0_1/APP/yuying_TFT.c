@@ -1623,7 +1623,7 @@ void zero_setting_Control() {
  *   实际"返回主页"由 STM32 按键（K2 确认）后下发 menu_rank=1 的 0x01 帧完成。 */
 void return_main_Control(void)
 {
-    const char *version = "V1_0_1";
+    char version[16];
     const char *slogan = "精确 稳定 可靠";
     uint16_t version_x, slogan_width, slogan_x;
     /* Static reference artwork only; the STM32 still owns the return action. */
@@ -1632,7 +1632,9 @@ void return_main_Control(void)
     u8g2_SetDrawColor(&u8g2, 0u);
     u8g2_DrawXBMP(&u8g2, 113u, 1u, 266u, 166u, ui_menu_return_page);
     /* The reference bitmap carries the same full-size title at both levels. */
-    /* Fixed display version at the upper-right; controller data is unchanged. */
+    /* Keep the V1_ prefix; controller tenths supply the final two segments. */
+    sprintf(version, "V1_%u_%u", (unsigned int)(Data_list1.UI_main.version / 10u),
+            (unsigned int)(Data_list1.UI_main.version % 10u));
     version_x = (uint16_t)(368u - ui_text_width(version, 18u));
     slogan_width = UI_RETURN_SLOGAN_WIDTH;
     slogan_x = (uint16_t)(113u + (266u - slogan_width) / 2u);

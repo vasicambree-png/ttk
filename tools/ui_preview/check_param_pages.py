@@ -201,14 +201,18 @@ def check(output):
         rows = records[name]
         if int(case["menu"]) == 7 and int(case["rank"]) in (2, 3):
             versions = [row for row in rows if row[3].startswith("V")]
-            require(len(versions) == 1 and versions[0][3] == "V1_0_1" and
+            require(len(versions) == 1 and re.fullmatch(r"V1_\d+_\d", versions[0][3]) and
                     versions[0][1:3] == (25, 18) and
                     versions[0][0] + width(versions[0][3], 18) == 368,
-                    name + ": fixed V1_0_1 at upper-right corner")
-            version_inks = [row for row in inks[name] if row[7] == "V1_0_1"]
+                    name + ": dynamic version with V1_ prefix at upper-right corner")
+            version_inks = [row for row in inks[name] if re.fullmatch(r"V1_\d+_\d", row[7])]
             require(len(version_inks) == 1 and 250 <= version_inks[0][3] <= version_inks[0][5] <= 372 and
                     1 <= version_inks[0][4] <= version_inks[0][6] <= 34,
                     name + ": version ink inside upper-right band")
+            if name.startswith("return_version_"):
+                raw = int(name.removeprefix("return_version_"))
+                require(versions and versions[0][3] == f"V1_{raw // 10}_{raw % 10}",
+                        name + ": final segments follow controller tenths encoding")
             slogans = [row for row in inks[name] if row[7] == "精确 稳定 可靠"]
             slogan_rows = [row for row in rows if row[3] == "精确 稳定 可靠"]
             require(len(slogan_rows) == 1 and slogan_rows[0][:3] ==
