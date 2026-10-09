@@ -36,11 +36,13 @@ static void reset(void)
 {
     memset(&Data_list1, 0, sizeof(Data_list1));
     memset(&screen_power, 0, sizeof(screen_power));
+    s_binding_save_return_pending = 0;
     memset(&last_drawn, 0, sizeof(last_drawn));
     mock_clock = 0; draws = off_calls = on_calls = drains = round_ticks = report_calls = 0;
     cmd03_requests = cmd03_ticks = cmd03_answers = response_calls = 0;
     init_calls = saves = clears = ble_ticks = name_ticks = 0;
     mock_save_status = last_message = last_response_cmd = last_response_status = 0;
+    host_real_ui_show_msg(UI_MSG_NONE);
     last_response_len = 0;
     mock_round_complete = mock_cmd03_ready = 0;
     g_scan_mode = g_binding_count = g_store_dirty = 0;
@@ -342,6 +344,7 @@ int main(void)
         CHECK(memcmp(&policy, &screen_power, sizeof(policy)) == 0);
         CHECK(g_scan_mode == SCAN_MODE_BIND);
         CHECK(saves == (i >= 2 ? 1u : 0u) && response_calls == (i >= 2 ? 1u : 0u));
+        CHECK(s_binding_save_return_pending == 0);
     }
     puts("PASS: binding save returns to parent with immediate data scan/power policy; statuses, invalid requests and unrelated pages preserved");
     for (i = 0; i < 2; i++) {
@@ -388,6 +391,68 @@ int main(void)
         CHECK(response_calls == (i >= 2 ? 1u : 0u));
     }
     puts("PASS: unbind returns to parent; deferred flash clear, statuses and invalid/unrelated requests preserved");
+    /* Save followed by the controller's stale detail frames, including
+     * within one UART burst and after the real message hold expires. */
+    for (i = 0; i < 3; i++) {
+        uint16_t binding[16] = {0};
+        uint8_t save_frame[] = {0xaa, 0xee, 0, 1, 5, 5, 0x0a};
+        unsigned tick;
+        reset(); mock_save_status = (uint8_t)i;
+        binding[14] = 1; binding[15] = 2;
+        len = make_page(frame, 3, 2, 0, binding, 16);
+        enqueue(frame, len); app_uart_process();
+        enqueue(save_frame, sizeof(save_frame)); enqueue(frame, len);
+        app_uart_process();
+        CHECK(saves == 1 && g_ui_msg != UI_MSG_NONE);
+        CHECK(Data_list1.menu_rank == 2 && Data_list1.UI_main.re_flag == 0);
+        for (tick = 0; tick < 4; tick++) {
+            mock_clock += 1600;
+            binding[0] = (uint16_t)(100u + tick);
+            len = make_page(frame, 3, 2, 0, binding, 16);
+            enqueue(frame, len); app_uart_process();
+            usart_ProcessEvent(0, START_TIMER_EVT); pump(20);
+            CHECK(Data_list1.menu_rank == 2 && Data_list1.rank3_addr == 2 &&
+                  Data_list1.UI_main.re_flag == 0);
+            CHECK(g_scan_mode == SCAN_MODE_DATA && screen_power.rank == 2);
+            CHECK(Data_list1.Menu_rank3.biaoding_ad[0][0] == 100u + tick);
+        }
+        CHECK(g_ui_msg == UI_MSG_NONE && last_drawn.menu_rank == 2);
+        CHECK(s_binding_save_return_pending == 1);
+        /* Neither corrupt pages nor messages/reinitialization acknowledge a
+         * controller page transition. Suppressed refresh does not renew power. */
+        {
+            uint32_t activity = screen_power.last_activity;
+            uint16_t message[] = {UI_MSG_PARAM_SAVE_OK};
+            len = make_page(frame, 2, 2, 2, binding, 16);
+            frame[len - 2] ^= 1;
+            enqueue(frame, len); app_uart_process();
+            CHECK(s_binding_save_return_pending == 1);
+            len = make_page(frame, 6, 2, 0, message, 1);
+            enqueue(frame, len); app_uart_process();
+            CHECK(s_binding_save_return_pending == 1);
+            len = make_page(frame, 3, 2, 0, binding, 16);
+            enqueue(frame, len); app_uart_process();
+            CHECK(screen_power.last_activity == activity);
+            len = make_page(frame, 5, 2, 0, NULL, 0);
+            enqueue(frame, len); app_uart_process();
+            CHECK(s_binding_save_return_pending == 1);
+            len = make_page(frame, 3, 2, 0, binding, 16);
+            enqueue(frame, len); app_uart_process();
+            CHECK(Data_list1.menu_rank == 2 && Data_list1.UI_main.re_flag == 0);
+        }
+        /* Genuine parent, home or another detail page permits a fresh entry. */
+        if (i == 0) len = make_page(frame, 2, 2, 2, binding, 16);
+        else if (i == 1) len = make_page(frame, 1, 0, 0, home, 11);
+        else len = make_page(frame, 3, 7, 0, binding, 2);
+        enqueue(frame, len); app_uart_process();
+        CHECK(s_binding_save_return_pending == 0);
+        len = make_page(frame, 3, 2, 0, binding, 16);
+        enqueue(frame, len); app_uart_process();
+        CHECK(Data_list1.menu_rank == 3 && Data_list1.UI_main.re_flag == 2);
+        usart_ProcessEvent(0, START_TIMER_EVT);
+        CHECK(g_scan_mode == SCAN_MODE_BIND);
+    }
+    puts("PASS: save stays at parent through stale page bursts and real message expiry; data caching, power policy and acknowledged reentry preserved");
     printf("%u checks, %u failures\n", checks, failures);
     return failures ? 1 : 0;
 }

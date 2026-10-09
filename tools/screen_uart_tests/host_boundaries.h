@@ -46,8 +46,7 @@ static void observer_adv_drain(unsigned n) { (void)n; drains++; }
 static void u8g2Init(u8g2_t *s) { (void)s; init_calls++; }
 static uint8_t binding_store_clear(void) { clears++; return BIND_STORE_STATUS_OK; }
 static uint8_t binding_store_save(void) { saves++; return mock_save_status; }
-static void ui_show_msg(uint8_t msg) { last_message = msg; }
-static uint8_t ui_msg_tick_sec(void) { return 0; }
+static void ui_show_msg(uint8_t msg) { last_message = msg; host_real_ui_show_msg(msg); }
 static void observer_round_tick(void) { round_ticks++; }
 static uint8_t observer_round_is_complete(void) { return mock_round_complete; }
 static uint8_t observer_round_has_new_data(void) { return 0; }

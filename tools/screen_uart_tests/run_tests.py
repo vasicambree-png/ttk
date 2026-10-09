@@ -41,6 +41,13 @@ def main():
     data_types = header[header.index("enum MENU_STATE"):header.index("void UI_Control")]
     messages = "\n".join(line for line in header.splitlines()
                          if line.startswith("#define UI_MSG_"))
+    ui_bytes = (APP / "yuying_TFT.c").read_bytes()
+    ui_source = ui_bytes.decode("utf-8-sig")
+    message_logic = ("volatile uint8_t g_ui_msg = UI_MSG_NONE;\n"
+                     "static uint8_t s_ui_msg_hold = 0u;\n"
+                     + function(ui_source, "ui_show_msg").replace(
+                         "void ui_show_msg(", "void host_real_ui_show_msg(", 1)
+                     + "\n" + function(ui_source, "ui_msg_tick_sec"))
     state = source[:source.index("__INTERRUPT")]
     state = re.sub(r'^\s*#include[^\n]*', '', state, flags=re.M)
     state += "\n" + "\n".join(line for line in source.splitlines()
@@ -48,7 +55,7 @@ def main():
     production = "\n".join(function(source, name) for name in (
         "calculate_checksum", "app_uart_process", "usart_ProcessEvent", "parse_received_frame"))
     combined = ("#include <stdint.h>\n#include <stdio.h>\n#include <string.h>\n"
-                + data_types + "\n" + messages + "\n"
+                + data_types + "\n" + messages + "\n" + message_logic + "\n"
                 + f'#include "{(APP / "include/screen_power.h").as_posix()}"\n'
                 + (HERE / "host_boundaries.h").read_text(encoding="utf-8")
                 + "\n" + state + "\n" + production + "\n"
@@ -67,6 +74,7 @@ def main():
                             capture_output=True, text=True, errors="replace")
     (OUT / "test.log").write_text(result.stdout + result.stderr, encoding="utf-8")
     hashes = {str(APP / "Usart3_task.c"): hashlib.sha256(source_bytes).hexdigest(),
+              str(APP / "yuying_TFT.c"): hashlib.sha256(ui_bytes).hexdigest(),
               str(APP / "include/yuying_TFT.h"): hashlib.sha256(header_bytes).hexdigest(),
               str(APP / "include/screen_power.h"): hashlib.sha256(
                   (APP / "include/screen_power.h").read_bytes()).hexdigest()}

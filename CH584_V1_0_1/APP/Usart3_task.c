@@ -42,6 +42,9 @@
 uint32_t dis_flag_cnt = 0;
 uint32_t g_frame_last_sec = FRAME_AGE_NEVER;    /* 帧龄（秒），门控用，见上 */
 static screen_power_t screen_power;
+/* After local binding save, wait for a controller page transition before
+ * accepting the same detail page again. A refresh is not a new entry. */
+static uint8_t s_binding_save_return_pending = 0u;
 
 /* ★ 契约 §2.7：CH584M 本地内容的实时刷新计数。
  *   START_IO_EVT 的周期已修正为 10ms（见下方 UI_IO_TICK_TICKS），
@@ -1192,6 +1195,24 @@ uint8_t parse_received_frame(uint8_t *rx_buffer, uint16_t data_len, data_LIST *p
               default:
                   return 10;   // 无效 menu_rank
           }
+          /* Save changes local navigation, while the controller can still
+             send its old binding page (also in the same UART burst). Cache
+             its business data but keep the parent until a different valid
+             ordinary page confirms navigation. Messages/reinit do not ack. */
+          if (s_binding_save_return_pending && menu_rank >= 1u && menu_rank <= 4u)
+          {
+              if (menu_rank == 3u && rank2 == 2u && pData->UI_main.re_flag == 2u)
+              {
+                  menu_rank = pData->menu_rank = 2u;
+                  rank3 = pData->rank3_addr = 2u;
+                  pData->UI_main.re_flag = 0u;
+                  g_scan_mode = SCAN_MODE_DATA;
+              }
+              else
+              {
+                  s_binding_save_return_pending = 0u;
+              }
+          }
           /* Always accept/cache valid data, even with display off. Only
              navigation or timeout changes count as activity; measurements
              (battery, RSSI, sensor values) deliberately do not. */
@@ -1393,6 +1414,7 @@ uint8_t parse_received_frame(uint8_t *rx_buffer, uint16_t data_len, data_LIST *p
             if (pData->menu_rank == 3u && pData->rank2_addr == 2u &&
                 pData->UI_main.re_flag == 2u)
             {
+                s_binding_save_return_pending = 1u;
                 pData->menu_rank = 2u;
                 pData->rank3_addr = 2u;
                 pData->UI_main.re_flag = 0u;
