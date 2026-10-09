@@ -441,7 +441,7 @@ static void init_data(int maximum) {
     Data_list1.UI_main.host_num = maximum ? 65535 : 41;
     Data_list1.UI_main.sub_num = maximum ? 65535 : 30;
     Data_list1.UI_main.send_host_num = maximum ? 65535 : 38;
-    Data_list1.UI_main.Lora_rssi = maximum ? 255 : 3;
+    Data_list1.UI_main.Lora_rssi = maximum ? 255 : 11;
     Data_list1.UI_main.version = maximum ? 65535 : 10;
     Data_list1.UI_main.vbat = maximum ? 65535 : 365;
     Data_list1.UI_main.state = 1;
@@ -844,11 +844,19 @@ int main(int argc, char **argv) {
     render_home("home_example", 1);
     init_data(0);
     render_home("home_page2", 2);
-    for (m = 0; m < 6; ++m) {
-        static const uint8_t signals[] = {0u, 1u, 2u, 3u, 4u, 255u};
+    for (m = 0; m < 12; ++m) {
+        static const uint8_t signals[] = {0u, 1u, 2u, 3u, 4u, 7u, 8u, 9u, 10u, 11u, 12u, 255u};
         init_data(0);
         Data_list1.UI_main.Lora_rssi = signals[m];
         snprintf(name, sizeof(name), "home_wifi_%u", signals[m]);
+        render_home(name, 1);
+    }
+    /* Exercise all HEX codes and fallback with the compact bitmap too. */
+    for (m = 8; m <= 12; ++m) {
+        init_data(0);
+        Data_list1.UI_main.Lora_rssi = (uint8_t)m;
+        Data_list1.UI_main.vbat = 65535u;
+        snprintf(name, sizeof(name), "home_wifi_compact_%u", m);
         render_home(name, 1);
     }
     for (m = 0; m < 4; ++m) {

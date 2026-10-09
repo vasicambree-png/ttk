@@ -314,3 +314,18 @@ RAM65920字节。84个绘图用例、35802项布局检查零失败；0/4/255整�
 `tools/ui_preview/output/home_wifi_crossed_fallback_20261008/`，示例为`after/home_wifi_4_3x.png`。
 原生fetch成功，提交前与`origin/main`一致；仅同步本轮UI、资源/生成器、检查器
 及配套说明。既有未跟踪文件和缓存不暂存；烧录及实屏效果尚未验证。
+
+## 2026-10-09 按STM32L0 HEX修正无线编码
+
+用户提供的STM32L0 HEX经Thumb反汇编确认首页信号编号为8–11，阈值80/96/110。
+按用户明确选择，当前首页改为8斜杠、9弱、10中、11强，未支持值回退斜杠。
+原屏幕图片顺序未还原，该图形顺序是用户确认约定，不能据此声称实际dBm或联网
+状态已验证。仅改显示映射；资源、布局、串口字段和超时门控保留。详细证据见
+`tools/WIRELESS_HEX_DISPLAY.md`。
+
+WCH重新编译UI、链接、生成HEX通过，构建日志无warning/error，FLASH212452字节、
+RAM66064字节。首页95个用例及45451项布局检查零失败，覆盖两套图形及边界/旧值
+回退；宿主仍有36条既有C4828编码警告。输出为
+`tools/screen_power_build/output/CH584M_TFT_HB.hex`，预览为
+`tools/ui_preview/output/wireless_hex_20261009/`。烧录及实屏联动尚未验证。
+同步仅选择本轮源码、检查器及配套说明，附件HEX和其他未跟踪文件不上传。

@@ -148,11 +148,19 @@ def check(output, home_only=False):
             require(count(case, "状态:" + ("开机" if state == "on" else "关机")) == 1 and
                     count(case, f"已绑定:{bound}") == 1 and count(case, "台") == 1,
                     case + ": status and binding-count limits displayed together")
-    wifi_hashes = {value: top_layouts.get(f"home_wifi_{value}", (None,) * 5)[2] for value in (0, 1, 2, 3, 4, 255)}
+    wifi_values = (0, 1, 2, 3, 4, 7, 8, 9, 10, 11, 12, 255)
+    wifi_hashes = {value: top_layouts.get(f"home_wifi_{value}", (None,) * 5)[2] for value in wifi_values}
     require(all(value is not None for value in wifi_hashes.values()) and
-            len({wifi_hashes[value] for value in (0, 1, 2, 3)}) == 4 and
-            wifi_hashes[0] == wifi_hashes[4] == wifi_hashes[255],
-            "wireless active levels stay distinct and inactive/unsupported levels share the crossed icon")
+            len({wifi_hashes[value] for value in (8, 9, 10, 11)}) == 4 and
+            all(wifi_hashes[value] == wifi_hashes[8] for value in (0, 1, 2, 3, 4, 7, 12, 255)),
+            "HEX codes 8..11 stay distinct and unsupported codes share the crossed icon")
+    for prefix in ("home_wifi_", "home_wifi_compact_"):
+        layouts = {value: top_layouts.get(f"{prefix}{value}", (None,) * 5) for value in range(8, 13)}
+        require(all(layout[2] is not None for layout in layouts.values()) and
+                len({layouts[value][2] for value in range(8, 12)}) == 4 and
+                layouts[8][2] == layouts[12][2] and
+                layouts[9][3] < layouts[10][3] < layouts[11][3],
+                prefix + "8 crossed, 9/10/11 add signal arcs, 12 falls back")
     for case in ("home_empty", "home_page2_empty"):
         require(count(case, "通道") == 0 and count(case, "--") == 20,
                 case + ": unknown channels use placeholders before binding")

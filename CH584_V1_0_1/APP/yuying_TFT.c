@@ -628,8 +628,10 @@ static void ui_main_meta_draw(uint16_t x, uint16_t baseline, const char *text, u
 
 static void ui_main_draw_wireless(uint8_t signal, uint16_t voltage_x, uint16_t voltage_width)
 {
-    /* Inactive or unsupported display levels keep the icon with a slash. */
-    uint8_t icon = signal <= 3u ? signal : 0u;
+    /* STM32L0 HEX sends codes 8..11. User-confirmed display order:
+     * 8 = crossed, 9 = weak, 10 = medium, 11 = strong.
+     * Unknown codes remain crossed; this is not a link-timeout detector. */
+    uint8_t icon = (signal >= 8u && signal <= 11u) ? (uint8_t)(signal - 8u) : 0u;
     if (voltage_width <= HOME_WIRELESS_FULL_MAX_W)
         u8g2_DrawXBMP(&u8g2, (uint16_t)(voltage_x - UI_WIRELESS_WIDTH - HOME_WIRELESS_GAP),
                       HOME_WIRELESS_TOP, UI_WIRELESS_WIDTH, UI_WIRELESS_HEIGHT,
