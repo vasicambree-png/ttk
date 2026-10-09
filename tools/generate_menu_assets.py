@@ -74,7 +74,17 @@ def warning_glyph(path, size):
     draw.fontmode = "1"
     draw.text((0, size - 1), "警", anchor="ls",
               font=ImageFont.truetype(str(path), size), fill=255)
-    return image.convert("1")
+    # Strengthen vertical/diagonal stems by one horizontal pixel; retain the
+    # vertical gaps in the dense top and the three lower horizontal strokes.
+    image = image.convert("1")
+    shifted = Image.new("1", image.size, 0)
+    shifted.paste(image, (1, 0))
+    return ImageChops.lighter(image, shifted)
+
+
+def return_lishu_glyph(char, path):
+    """One size and weight for all three return-page captions."""
+    return glyph(char, path, 22, stroke_width=1, threshold=180)
 
 
 def return_slogan(font_path, lishu_path):
@@ -84,7 +94,7 @@ def return_slogan(font_path, lishu_path):
     image = Image.new("1", (sum(widths), 24), 0)
     x = 0
     for char, advance in zip(text, widths):
-        part = glyph(char, lishu_path, 22, stroke_width=1, threshold=180)
+        part = return_lishu_glyph(char, lishu_path)
         if char != " ":
             image.paste(part, (x + (advance - part.width) // 2, 0))
         x += advance
@@ -94,27 +104,22 @@ def return_slogan(font_path, lishu_path):
 def return_artwork(reference, font_path, lishu_path):
     """Replace ordinary text while preserving the brand, icons and rules.
 
-    Bounds below use the full 384x168 reference coordinates. The lower
-    '三为矿安' retains its original shape with stronger horizontal strokes.
+    Bounds below use the full 384x168 reference coordinates.
+    All three lower captions use the same 22px LiSu glyphs.
     """
     page = reference.crop((113, 1, 379, 167)).point(
         lambda p: 255 if p >= 128 else 0, "1")
-    # Strengthen only the supplied wordmark, without blurring its vertical gaps.
-    brand_box = (143 - 113, 118 - 1, 239 - 113, 134 - 1)
-    brand = page.crop(brand_box)
-    shifted = Image.new("1", brand.size, 0)
-    shifted.paste(brand, (1, 0))
-    page.paste(ImageChops.lighter(brand, shifted), brand_box)
     for bounds, text, size, baseline in (
             ((156, 10, 239, 35), "返回主页", 20, 32),
             ((141, 52, 250, 75), "是否返回主页?", 16, 70),
-            ((249, 112, 347, 138), "安全相伴", 20, 134),
+            ((143, 110, 239, 138), "三为矿安", 22, 134),
+            ((249, 110, 347, 138), "安全相伴", 22, 134),
             ((163, 141, 329, 155), "精确 · 稳定 · 可靠", 11, 153)):
         left, top, right, bottom = bounds
         page.paste(0, (left - 113, top - 1, right - 113, bottom - 1))
-        face = lishu_path if text == "安全相伴" else font_path
-        images = [glyph(char, face, size, stroke_width=1, threshold=180)
-                  if text == "安全相伴" else glyph(char, face, size) for char in text]
+        images = [return_lishu_glyph(char, lishu_path)
+                  if text in ("三为矿安", "安全相伴")
+                  else glyph(char, font_path, size) for char in text]
         width = sum(image.width for image in images)
         if width > right - left:
             raise ValueError(f"Return-home text exceeds its region: {text}")
