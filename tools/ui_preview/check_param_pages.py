@@ -200,27 +200,23 @@ def check(output):
         name = case["case"]
         rows = records[name]
         if int(case["menu"]) == 7 and int(case["rank"]) in (2, 3):
-            versions = [row for row in rows if re.fullmatch(r"V\d+\.\d", row[3])]
-            require(len(versions) == 1 and versions[0][1:3] == (155, 18) and
+            versions = [row for row in rows if row[3].startswith("V")]
+            require(len(versions) == 1 and versions[0][3] == "V1_0_1" and
+                    versions[0][1:3] == (25, 18) and
                     versions[0][0] + width(versions[0][3], 18) == 368,
-                    name + ": controller version at lower-right corner")
-            version_inks = [row for row in inks[name] if re.fullmatch(r"V\d+\.\d", row[7])]
-            require(len(version_inks) == 1 and 118 <= version_inks[0][3] <= version_inks[0][5] <= 372 and
-                    134 <= version_inks[0][4] <= version_inks[0][6] <= 159,
-                    name + ": version ink inside footer band")
+                    name + ": fixed V1_0_1 at upper-right corner")
+            version_inks = [row for row in inks[name] if row[7] == "V1_0_1"]
+            require(len(version_inks) == 1 and 250 <= version_inks[0][3] <= version_inks[0][5] <= 372 and
+                    1 <= version_inks[0][4] <= version_inks[0][6] <= 34,
+                    name + ": version ink inside upper-right band")
             slogans = [row for row in inks[name] if row[7] == "精确 稳定 可靠"]
             slogan_rows = [row for row in rows if row[3] == "精确 稳定 可靠"]
             require(len(slogan_rows) == 1 and slogan_rows[0][:3] ==
-                    (min(113 + (266 - slogan_width) // 2,
-                         versions[0][0] - 8 - slogan_width), 155, slogan_size),
-                    name + ": enlarged slogan centered with longest-version collision guard")
+                    (113 + (266 - slogan_width) // 2, 155, slogan_size),
+                    name + ": enlarged slogan centered in footer")
             require(len(slogans) == 1 and len(version_inks) == 1 and
-                    slogans[0][5] + 4 < version_inks[0][3],
-                    name + ": slogan and longest version remain separate")
-            if name.startswith("return_version_"):
-                raw = int(name.removeprefix("return_version_"))
-                require(versions and versions[0][3] == f"V{raw // 10}.{raw % 10}",
-                        name + ": version follows controller tenths format")
+                    version_inks[0][6] < slogan_rows[0][1] + 1 - slogan_size,
+                    name + ": slogan and version remain separate")
         if int(case["rank"]) != 3 or int(case["menu"]) != 2 or int(case["subpage"]) not in (1, 2):
             continue
         if int(case["subpage"]) == 2:
