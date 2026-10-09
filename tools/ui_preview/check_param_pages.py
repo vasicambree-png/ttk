@@ -196,6 +196,9 @@ def check(output):
     require((output / "after/binding_left_stale_1.pgm").read_bytes() ==
             (output / "after/menu_2.pgm").read_bytes(),
             "binding menu: second-level selection ignores stale unbind flag")
+    require((output / "after/binding_save_parent_stale.pgm").read_bytes() ==
+            (output / "after/menu_2.pgm").read_bytes(),
+            "binding menu: save parent ignores stale binding flag")
     for case in cases:
         name = case["case"]
         rows = records[name]

@@ -605,6 +605,7 @@ static void render_menu_cases(void) {
     init_data(0);
     render("binding_left_stale_1", 2, 2, 1, 0, 1);
     render("binding_left_stale_2", 2, 2, 2, 0, 1);
+    render("binding_save_parent_stale", 2, 2, 2, 0, 2);
     for (n = 1; n <= SCAN_NAME_CACHE_NUM; ++n) {
         init_data(0);
         for (i = n; i < SCAN_NAME_CACHE_NUM; ++i)

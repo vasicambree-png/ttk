@@ -1017,7 +1017,7 @@ void binding_Control(void)
     uint8_t re = Data_list1.UI_main.re_flag;
     uint8_t rank3 = Data_list1.rank3_addr;
     char buf[48];
-    if (re == 2) { binding_scan_page(rank3); return; }
+    if (re == 2 && Data_list1.menu_rank == 3u) { binding_scan_page(rank3); return; }
     if (re == 1 && Data_list1.menu_rank == 3u) { binding_device_list_page(rank3); return; }
     sprintf(buf, "已绑定设备:%u台", (unsigned int)g_binding_count);
     ui_menu_control(117u, 50u, 258u, 25u, buf, ui_menu_selected(0u), 0u);
