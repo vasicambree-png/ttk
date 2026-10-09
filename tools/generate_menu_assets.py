@@ -90,7 +90,24 @@ def warning_glyph(path, size):
 
 def return_lishu_glyph(char, path):
     """One size and weight for all three return-page captions."""
+    if char in ("精", "靠"):
+        return hinted_glyph(char, path, 22)
     return glyph(char, path, 22, stroke_width=1, threshold=180)
+
+
+def hinted_glyph(char, path, size):
+    """Fit dense strokes to native pixels without changing face or metrics.
+
+    Supersampled thresholding merges the inner strokes of these glyphs.
+    Native monochrome hinting keeps the one-pixel counters open.
+    """
+    width = glyph(char, path, size).width
+    image = Image.new("L", (width, size + 2), 0)
+    draw = ImageDraw.Draw(image)
+    draw.fontmode = "1"
+    draw.text((0, size - 1), char, anchor="ls",
+              font=ImageFont.truetype(str(path), size), fill=255)
+    return image.convert("1")
 
 
 def return_slogan(font_path, lishu_path):
@@ -149,6 +166,8 @@ def main():
     for size in (11, 14, 16, 18):
         images = [(char, warning_glyph(args.font, size)
                    if char == "警" and size in (14, 16)
+                   else hinted_glyph(char, args.font, size)
+                   if char == "置" and size in (16, 18)
                    else glyph(char, args.font, size)) for char in chars]
         for char, image in images:
             parts.append(array(f"ui_menu_{size}_{ord(char):04x}", image))
