@@ -231,7 +231,7 @@ def check(output):
             longest = re.fullmatch(r"subpage_scan_longest_cycle_(\d+)_button_(\d+)", name)
             expected_count = int(fixture[1]) if fixture else 32 if longest else 0 if "empty" in name else 3
             expected_numbers = list(range(1, expected_count + 1))
-            column_rows = max(1, (expected_count + 1) // 2) if expected_count <= 20 else 8
+            column_rows = 10 if expected_count <= 20 else 8
             column_step = 189 if expected_count <= 20 else 92
             row_step = 11 if expected_count <= 20 else 13
             name_width = 147 if expected_count <= 20 else 64
@@ -311,7 +311,7 @@ def check(output):
         raw_count = int(fixture[1]) if fixture else int(boundary[1]) if boundary else \
                     20 if extreme_mac else 32 if longest else 0 if "empty" in name else 3
         count = min(raw_count, 20)
-        column_rows = max(1, (count + 1) // 2)
+        column_rows = 10
         require(counts and counts[0][3] == f"总设备数:{raw_count}台",
                 name + ": header preserves true bound count including defensive overflow fixture")
         require(not any(re.fullmatch(r"\d+/\d+", row[3]) for row in rows),

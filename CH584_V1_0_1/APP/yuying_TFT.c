@@ -957,8 +957,8 @@ static void binding_device_list_page(uint8_t rank3)
     ui_text_draw(108u, 20u, line, 18u);
     n = g_binding_count;
     if (n > MAX_CH_NUM) n = MAX_CH_NUM;
-    rows_per_column = (uint8_t)((n + 1u) / 2u);
-    if (rows_per_column == 0u) rows_per_column = 1u;
+    /* Fixed columns: devices 1-10 on the left, 11-20 on the right. */
+    rows_per_column = 10u;
     if (n == 0u) ui_text_draw(14u, 33u, "--", 11u);
     for (i = 0u; i < n; i++)
     {
@@ -991,8 +991,8 @@ static void binding_scan_page(uint8_t rank3)
     ui_text_draw(108u, 20u, number, 18u);
     /* Normal distinct devices occupy at least one of twenty channels. Keep
      * every record visible even if a restored table contains duplicates. */
-    rows_per_column = n <= MAX_CH_NUM ? (uint8_t)((n + 1u) / 2u) : 8u;
-    if (rows_per_column == 0u) rows_per_column = 1u;
+    /* Normal records keep fixed columns: left 1-10, right 11-20. */
+    rows_per_column = n <= MAX_CH_NUM ? 10u : 8u;
     column_step = n <= MAX_CH_NUM ? 189u : 92u;
     name_width = n <= MAX_CH_NUM ? 147u : 64u;
     row_step = n <= MAX_CH_NUM ? 11u : 13u;
